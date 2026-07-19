@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>UAvalut</title>
+<style>
+:root{
+  --paper:#0E2238; --line:#9FC4E0; --dim:#4A6B8A; --ink:#DCEBF7;
+  --note:#FFC65C; --zone:#13314E; --ok:#7FD8A4; --bad:#FF7B7B;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--paper);color:var(--ink);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;font-size:13px;}
+button{border:1px solid var(--line);background:transparent;color:var(--ink);padding:6px 12px;border-radius:3px;cursor:pointer;font-size:12px;font-family:inherit;}
+button:hover{border-color:var(--note);color:var(--note);}
+button:disabled{border-color:var(--dim);color:var(--dim);cursor:not-allowed;}
+button.warn{border-color:var(--note);color:var(--note);}
+select,input,textarea{background:var(--zone);color:var(--ink);border:1px solid var(--dim);border-radius:3px;padding:5px 8px;font-size:12px;font-family:inherit;}
+.screen{display:none;min-height:100vh;}
+.screen.show{display:block;}
+h1{font-size:16px;letter-spacing:.2em;padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;}
+h1 small{font-size:10px;color:var(--dim);letter-spacing:.1em;}
+h1 .back{margin-left:auto;}
+
+/* ===== メニュー ===== */
+#screen-menu{display:none;}
+#screen-menu.show{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+#screen-menu .logo{font-size:52px;font-weight:800;letter-spacing:.05em;margin-bottom:22px;text-align:center;line-height:1;}
+#screen-menu .logo .lg-ua{color:#E8382F;text-shadow:0 2px 14px rgba(232,56,47,.35);}
+#screen-menu .logo .lg-v{color:var(--ink);text-shadow:0 2px 16px rgba(159,196,224,.30);}
+#screen-menu .logo small{display:flex;align-items:center;justify-content:center;gap:12px;font-size:10px;font-weight:normal;color:var(--dim);letter-spacing:.28em;margin-top:16px;text-indent:.28em;}
+#screen-menu .logo small::before{content:'';height:1px;width:56px;background:linear-gradient(90deg,transparent,var(--dim));}
+#screen-menu .logo small::after{content:'';height:1px;width:56px;background:linear-gradient(90deg,var(--dim),transparent);}
+.mbtn{width:320px;padding:16px;font-size:14px;letter-spacing:.15em;background:var(--zone);}
+.mbtn small{display:block;font-size:10px;color:var(--dim);margin-top:5px;letter-spacing:.03em;}
+#decklist-body{max-width:680px;margin:26px auto;display:flex;flex-direction:column;gap:10px;padding:0 14px;}
+#dl-new{padding:12px;font-size:13px;letter-spacing:.15em;background:var(--zone);}
+.dlrow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:4px;padding:10px 14px;background:rgba(19,49,78,.5);}
+.dlrow b{flex:1;font-size:13px;}
+.dlrow small{color:var(--dim);margin-right:6px;}
+
+/* ===== デッキ構築 ===== */
+#builder-body{display:grid;grid-template-columns:1fr 320px;height:calc(100vh - 49px);}
+#builder-left{border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;}
+#filters{display:flex;gap:8px;padding:10px;border-bottom:1px dashed var(--dim);flex-wrap:wrap;align-items:center;}
+#card-grid{flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:14px;align-content:start;}
+.gcard{display:flex;flex-direction:column;gap:5px;}
+.gimg{width:100%;aspect-ratio:5/7;border:1px solid var(--dim);border-radius:4px;background:var(--zone);position:relative;overflow:hidden;cursor:pointer;}
+.gimg img{width:100%;height:100%;object-fit:cover;display:block;position:relative;}
+.gimg .fb{position:absolute;inset:0;padding:6px;font-size:10px;line-height:1.5;overflow:hidden;}
+.gimg .fb b{display:block;font-size:11px;margin-bottom:3px;}
+.gimg .fb .bp{color:var(--note);}
+.gbadges{display:flex;gap:4px;font-size:10px;justify-content:center;}
+.gbadges span{border:1px solid var(--dim);border-radius:8px;padding:0 7px;}
+.gcount{display:flex;align-items:center;justify-content:center;gap:10px;}
+.gcount button{width:26px;height:24px;padding:0;font-size:14px;line-height:1;}
+.gcount .n{font-family:Consolas,Menlo,monospace;color:var(--note);font-size:14px;width:20px;text-align:center;}
+#builder-right{display:flex;flex-direction:column;overflow:hidden;}
+#deck-head{padding:10px;border-bottom:1px dashed var(--dim);line-height:1.9;}
+#deck-count{font-family:Consolas,Menlo,monospace;font-size:20px;color:var(--note);}
+#deck-valid{font-size:11px;line-height:1.8;}
+#deck-valid .ng{color:var(--bad);}
+#deck-valid .okc{color:var(--ok);}
+#deck-list{flex:1;overflow-y:auto;padding:10px;font-size:11px;line-height:1.6;}
+.dl-row{display:flex;align-items:center;gap:6px;padding:3px 4px;border-bottom:1px solid rgba(74,107,138,.3);}
+.dl-row .x{font-family:Consolas,Menlo,monospace;color:var(--note);width:26px;}
+.dl-row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+.dl-row button{padding:1px 7px;font-size:11px;}
+#deck-foot{padding:10px;border-top:1px dashed var(--dim);display:flex;flex-direction:column;gap:6px;}
+#saved-area{font-size:11px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+
+/* ===== 対戦 ===== */
+#battle-body{display:grid;grid-template-columns:240px 1fr 200px;height:calc(100vh - 49px);}
+#inspector{border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;}
+#insp-img{margin:10px 10px 6px;border:1px solid var(--dim);border-radius:4px;background:var(--zone);aspect-ratio:5/7;position:relative;overflow:hidden;flex-shrink:0;}
+#insp-img img{width:100%;height:100%;object-fit:contain;display:block;position:relative;}
+#insp-img .fb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:11px;text-align:center;padding:10px;}
+#insp-text{margin:0 10px;border:1px dashed var(--dim);border-radius:4px;padding:8px;font-size:11px;line-height:1.8;overflow-y:auto;max-height:30vh;flex-shrink:0;}
+#insp-text .t{color:var(--note);font-size:10px;letter-spacing:.1em;display:block;margin:4px 0 2px;}
+#battle-log{flex:1;margin:8px 10px 10px;border:1px dashed var(--dim);border-radius:4px;padding:8px;font-size:11px;line-height:1.9;overflow-y:auto;color:var(--dim);}
+#battle-log .p0{color:var(--ink);}
+#battle-log .p1{color:#B8D4EA;}
+#battle-log .sys{color:var(--note);}
+#field{overflow-y:auto;border-right:1px solid var(--line);display:flex;flex-direction:column;}
+#sidebar{padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
+#sidebar h3{font-size:10px;letter-spacing:.15em;color:var(--line);margin-top:6px;}
+#turn-ind{font-size:12px;line-height:1.7;border:1px solid var(--dim);border-radius:3px;padding:6px 8px;}
+#turn-ind b{color:var(--note);}
+
+.hand-row{display:flex;gap:6px;align-items:center;padding:8px 10px;min-height:132px;flex-wrap:wrap;}
+.hand-row .bcard{width:80px;height:112px;}
+.hand-row.opp{border-bottom:1px solid var(--line);}
+.hand-row.own{border-top:1px solid var(--line);}
+.hand-row .tag{font-size:10px;color:var(--line);letter-spacing:.1em;margin-right:4px;}
+.parea{flex:1;display:flex;gap:14px;padding:8px 10px;justify-content:center;align-items:center;}
+.parea.opp{border-bottom:1px dashed var(--dim);}
+.pside{display:flex;flex-direction:column;gap:10px;justify-content:center;align-items:center;flex:0 0 150px;}
+.zbox{background:var(--zone);border:1px dashed var(--dim);border-radius:4px;padding:8px 14px;font-size:11px;text-align:center;line-height:1.7;cursor:pointer;position:relative;width:fit-content;min-width:116px;}
+.abcol{display:flex;align-items:center;justify-content:center;flex:0 0 92px;}
+.zbox.solid{border-style:solid;border-color:var(--line);}
+.zbox .drops{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:5px;}
+.lines{display:flex;flex-direction:column;gap:8px;justify-content:center;align-items:center;}
+.lz{border:1px solid var(--line);border-radius:4px;padding:8px 6px;position:relative;background:rgba(19,49,78,.5);min-height:104px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:400px;}
+.lz .lbl{position:absolute;top:-8px;left:10px;background:var(--paper);padding:0 6px;font-size:10px;color:var(--line);letter-spacing:.1em;}
+.lz .drops{margin-left:auto;}
+.drop{font-size:10px;color:var(--ok);border:1px solid var(--ok);border-radius:3px;padding:2px 6px;background:rgba(127,216,164,.08);cursor:pointer;white-space:nowrap;}
+.drop:hover{background:rgba(127,216,164,.25);}
+.abbtn{border-color:var(--note);color:var(--note);letter-spacing:.05em;width:92px;padding:12px 6px;white-space:normal;line-height:1.8;}
+.event-strip{border-top:1px dashed var(--note);border-bottom:1px dashed var(--note);padding:6px 10px;display:flex;gap:8px;align-items:center;min-height:70px;}
+.event-strip .tag{font-size:10px;color:var(--note);letter-spacing:.12em;}
+
+.bcard{width:60px;height:84px;border:1px solid var(--dim);border-radius:3px;background:var(--paper);position:relative;cursor:pointer;font-size:9px;overflow:hidden;flex-shrink:0;}
+.bcard.rest{width:84px;height:60px;}
+.bcard.rest img{transform:rotate(90deg);transform-origin:center;width:60px;height:84px;position:absolute;left:12px;top:-12px;}
+.bcard img{width:100%;height:100%;object-fit:cover;display:block;position:relative;}
+.bcard .fb .sub{display:block;font-size:8px;color:#9FC4E0;}
+.bcard .fb{position:absolute;inset:0;padding:3px;line-height:1.4;overflow:hidden;background:var(--zone);}
+.bcard .fb b{display:block;font-size:9px;}
+.bcard .fb .bp{color:var(--note);}
+.bcard.facedown{background:repeating-linear-gradient(45deg,var(--zone),var(--zone) 4px,var(--paper) 4px,var(--paper) 8px);}
+.bcard.sel{border-color:var(--note);box-shadow:0 0 0 2px var(--note);}
+.bcard .memo{position:absolute;bottom:1px;right:1px;background:var(--note);color:#000;font-size:9px;padding:0 3px;border-radius:2px;font-family:Consolas,monospace;z-index:2;}
+.bcard .stk{position:absolute;top:1px;right:1px;background:var(--dim);color:#fff;font-size:9px;padding:0 4px;border-radius:2px;z-index:2;}
+.bcard .frz{position:absolute;top:1px;left:1px;background:#7fd8ff;color:#03314f;font-size:10px;padding:0 3px;border-radius:2px;z-index:2;}
+.apchip{display:inline-block;width:30px;height:42px;border:1px solid var(--line);border-radius:2px;font-size:9px;line-height:42px;cursor:pointer;margin:2px;text-align:center;}
+.apchip.rest{width:42px;height:30px;line-height:30px;border-color:var(--dim);color:var(--dim);}
+#popup{position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;}
+#popup.show{display:flex;}
+#popup .box{max-width:660px;width:90%;max-height:82vh;overflow-y:auto;display:flex;gap:16px;background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:16px;flex-wrap:wrap;}
+#popup .box .pimg{width:230px;flex-shrink:0;}
+#popup .box .ptext{flex:1;min-width:220px;font-size:12px;line-height:1.9;}
+#popup .box .ptext .t{color:var(--note);display:block;margin:6px 0 2px;font-size:11px;}
+
+/* コンテキストメニュー・モーダル */
+#ctx{position:fixed;z-index:100;background:var(--paper);border:1px solid var(--note);display:none;min-width:190px;font-size:12px;}
+#ctx div{padding:6px 12px;cursor:pointer;border-bottom:1px solid rgba(74,107,138,.3);}
+#ctx div:hover{background:var(--zone);color:var(--note);}
+#modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:90;display:none;align-items:center;justify-content:center;}
+#modal-bg.show{display:flex;}
+#modal{background:var(--paper);border:1px solid var(--line);border-radius:4px;max-width:1300px;width:92%;max-height:95vh;display:flex;flex-direction:column;}
+#modal h2{font-size:13px;letter-spacing:.1em;padding:10px 14px;border-bottom:1px solid var(--dim);color:var(--note);}
+#modal-content{padding:12px 14px;overflow-y:auto;flex:1;font-size:12px;line-height:1.8;}
+#modal-foot{padding:10px 14px;border-top:1px dashed var(--dim);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+.mrow{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(74,107,138,.3);}
+.mrow .mini{width:46px;height:64px;flex-shrink:0;}
+.mrow .info{flex:1;font-size:11px;line-height:1.5;min-width:140px;}
+.mrow .acts{display:flex;gap:4px;flex-wrap:wrap;}
+.mrow .acts button{padding:2px 7px;font-size:10px;}
+</style>
+</head>
+<body>
+
+<!-- ============ メニュー ============ -->
+<div id="screen-menu" class="screen show">
+  <div class="logo"><span class="lg-ua">UA</span><span class="lg-v">valut</span><small>手動効果処理式 ユニオンアリーナ シミュレータ</small></div>
+  <button class="mbtn" onclick="showScreen('decklist')">デッキ構築<small>デッキの一覧・新規作成・編集・確認</small></button>
+  <button class="mbtn" onclick="openBattleSetup()">一人回し<small>保存済みデッキを2つ選んで開始（同じデッキ×2も可）</small></button>
+  <button class="mbtn" onclick="openNetSetup()">友人と対戦<small>合言葉で部屋を作成・参加（インターネット接続が必要です）</small></button>
+</div>
+
+<!-- ============ デッキ一覧 ============ -->
+<div id="screen-decklist" class="screen">
+  <h1>デッキ一覧 <small>保存済みデッキの新規作成・編集・確認・削除</small>
+    <button class="back" onclick="showScreen('menu')">◂ メニューへ</button></h1>
+  <div id="decklist-body">
+    <button id="dl-new" onclick="dlNew()">＋ 新規作成</button>
+    <div id="decklist-rows"></div>
+  </div>
+</div>
+
+<!-- ============ デッキ構築 ============ -->
+<div id="screen-builder" class="screen">
+  <h1>デッキ構築 <small>同一作品のみ・50枚・同ナンバー4枚まで（※特例あり）</small>
+    <button class="back" onclick="showScreen('menu')">◂ メニューへ</button></h1>
+  <div id="builder-body">
+    <div id="builder-left">
+      <div id="filters">
+        <select id="f-work"><option value="">作品を選択…</option></select>
+        <select id="f-color"><option value="">色 ▾</option></select>
+        <select id="f-req"><option value="">必要エナジー ▾</option>
+          <option value="0">なし/−</option><option value="1">1</option><option value="2">2</option>
+          <option value="3">3</option><option value="4">4以上</option></select>
+        <select id="f-type"><option value="">種類 ▾</option>
+          <option>キャラクター</option><option>イベント</option><option>フィールド</option></select>
+        <select id="f-trig"><option value="">トリガー ▾</option>
+          <option value="なし">なし</option><option>ドロー</option><option>アクティブ</option><option>レイド</option>
+          <option>ゲット</option><option>カラー</option><option>スペシャル</option><option>ファイナル</option></select>
+        <input id="f-kw" placeholder="キーワード検索（名前・効果・特徴）" style="width:220px">
+      </div>
+      <div id="card-grid"></div>
+    </div>
+    <div id="builder-right">
+      <div id="deck-head">
+        <input id="deck-name" value="新しいデッキ" style="width:150px"> 
+        <span id="deck-count">0</span> / 50
+        <div id="deck-valid"></div>
+      </div>
+      <div id="deck-list"></div>
+      <div id="deck-foot">
+        <div id="saved-area">
+          <select id="saved-decks" style="flex:1"></select>
+          <button onclick="loadDeck()">読込</button>
+          <button onclick="deleteDeck()">削除</button>
+        </div>
+        <button onclick="saveDeck()">このブラウザに保存</button>
+        <button onclick="clearBuilderDeck()">デッキをクリア</button>
+        <button onclick="openCodeModal()">デッキコード書き出し / 読み込み</button>
+        <button class="warn" onclick="openBattleSetup(true)">この構成で一人回しを開始 ▸</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 対戦 ============ -->
+<div id="screen-battle" class="screen">
+  <h1><span id="battle-title">一人回し</span> <small>左クリック=選択 / 右クリック=操作メニュー / ⊕=選択カードをそこへ移動</small>
+    <button class="back" onclick="leaveBattle()">◂ メニューへ</button></h1>
+  <div id="battle-body">
+    <div id="inspector">
+      <div id="insp-img"><div class="fb">カードをクリックすると<br>ここに表示</div></div>
+      <div id="insp-text"></div>
+      <div id="battle-log"></div>
+    </div>
+    <div id="field"></div>
+    <div id="sidebar">
+      <div id="turn-ind"></div>
+      <h3>ターン進行</h3>
+      <button id="btn-extra" onclick="extraDraw()">エクストラドロー（AP-1・ターン1回）</button>
+      <button onclick="endTurn()">ターン終了</button>
+      <h3>汎用操作（一人回し=ターンプレイヤー / 対戦=自分）</h3>
+      <button onclick="drawCard(actPid(),true)">ドロー</button>
+      <button onclick="viewTopX(actPid())">山札の上からX枚を見る</button>
+      <button onclick="searchDeck(actPid())">山札から探す（自動シャッフル）</button>
+      <button onclick="doShuffle(actPid())">シャッフル</button>
+      <button onclick="declareEvent()">イベント使用宣言（選択中の手札）</button>
+      <h3>宣言（選択中のカード）</h3>
+      <button onclick="declareEffect()">効果を宣言</button>
+      <button onclick="declareTarget()">対象に指定</button>
+      <button onclick="toggleFreeze()">フリーズ指定 / 解除</button>
+    </div>
+  </div>
+</div>
+
+<div id="popup" onclick="this.classList.remove('show')"></div>
+
+<div id="ctx"></div>
+<div id="modal-bg"><div id="modal"><h2 id="modal-title"></h2><div id="modal-content"></div><div id="modal-foot"></div></div></div>
+
+<!-- Firebase（友人と対戦用。読み込めなくても一人回し・デッキ構築は動作します） -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="cards-data.js"></script>
+<script>
+/* ================= 共通 ================= */
+const IMAGE_DIR = 'images/';           // カード画像フォルダ（index.htmlと同じ場所に置く）
+const $ = s => document.querySelector(s);
+const CARDS = {};
+CARD_DATA.forEach(c => CARDS[c.no] = c);
+
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(e=>e.classList.remove('show'));
+  $('#screen-'+name).classList.add('show');
+  if(name==='builder') renderBuilder();
+  if(name==='decklist') renderDeckList();
+}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// カードの絵（画像がなければテキストにフォールバック）
+function visualHTML(no, cls){
+  const c = CARDS[no];
+  if(!c) return `<div class="${cls}"><div class="fb">不明なカード<br>${esc(no)}</div></div>`;
+  return `<div class="${cls}">
+    <div class="fb"><b>${esc(c.name)}</b><span class="bp">${c.bp!=='-'?'BP'+esc(c.bp):esc(c.type)}</span><br>${esc(c.req)}</div>
+    <img src="${IMAGE_DIR}${esc(c.img)}" onerror="this.remove()" alt="">
+  </div>`;
+}
+
+/* ================= デッキ構築 ================= */
+const builder = { deck:{}, };   // deck: {カード番号: 枚数}
+
+const WORKS = [...new Set(CARD_DATA.map(c=>c.work))].sort();
+const COLORS = [...new Set(CARD_DATA.map(c=>c.color))].sort();
+WORKS.forEach(w=>{const o=document.createElement('option');o.textContent=w;$('#f-work').appendChild(o);});
+COLORS.forEach(w=>{const o=document.createElement('option');o.textContent=w;$('#f-color').appendChild(o);});
+['f-work','f-color','f-req','f-type','f-trig'].forEach(id=>$('#'+id).addEventListener('change',renderGrid));
+$('#f-kw').addEventListener('input',renderGrid);
+
+function filteredCards(){
+  const w=$('#f-work').value, col=$('#f-color').value, req=$('#f-req').value,
+        ty=$('#f-type').value, tg=$('#f-trig').value, kw=$('#f-kw').value.trim();
+  if(!w) return null;
+  return CARD_DATA.filter(c=>{
+    if(c.work!==w) return false;
+    if(c.type==='アクションポイント') return false;     // APカードはデッキ外
+    if(col && c.color!==col) return false;
+    if(req!==''){ const n=+req; if(n===4){if(c.reqN<4)return false;} else if(c.reqN!==n) return false; }
+    if(ty && c.type!==ty) return false;
+    if(tg){ if(tg==='なし'){ if(c.trigK) return false; } else if(c.trigK!==tg) return false; }
+    if(kw && !(c.name.includes(kw)||c.eff.includes(kw)||c.trait.includes(kw)||c.trig.includes(kw))) return false;
+    return true;
+  });
+}
+
+function renderGrid(){
+  const list = filteredCards();
+  const g = $('#card-grid');
+  if(!list){ g.innerHTML = '<p style="color:var(--dim);white-space:nowrap">作品を選択してください。</p>'; return; }
+  g.innerHTML = list.map(c=>{
+    const n = builder.deck[c.no]||0;
+    return `<div class="gcard">
+      ${visualHTML(c.no,'gimg').replace('class="gimg"',`class="gimg" onclick="cardDetail('${c.no}')"`)}
+      <div class="gcount">
+        <button onclick="chgCount('${c.no}',-1)">−</button>
+        <span class="n" data-cnt="${c.no}">${n}</span>
+        <button onclick="chgCount('${c.no}',1)">＋</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function baseOf(no){ return String(no).replace(/_p\d+$/,''); }   // パラレル(_p1等)を除いた基本コード
+function baseCount(base, exceptNo){
+  return Object.entries(builder.deck).reduce((sum,[no,n])=>
+    (baseOf(no)===base && no!==exceptNo) ? sum+n : sum, 0);
+}
+
+function chgCount(no, d){
+  const c = CARDS[no];
+  const cur = builder.deck[no]||0;
+  const others = baseCount(baseOf(no), no);            // 同名パラレルの合計枚数
+  const next = Math.min(Math.max(cur+d,0), Math.max(0, c.max - others));
+  if(next===0) delete builder.deck[no]; else builder.deck[no]=next;
+  // 一覧全体は作り直さず、数字だけ書き換える（スクロール位置が飛ばないように）
+  const span = document.querySelector(`[data-cnt="${no}"]`);
+  if(span) span.textContent = next;
+  renderDeckPane();
+}
+
+function clearBuilderDeck(){
+  if(!Object.keys(builder.deck).length) return;
+  if(!confirm('デッキの中身を全てクリアしますか？')) return;
+  builder.deck = {};
+  renderBuilder();
+}
+
+function cardDetail(no){
+  const c = CARDS[no];
+  openModal(c.name, `
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div style="width:220px">${visualHTML(no,'gimg')}</div>
+      <div style="flex:1;min-width:220px;line-height:1.9">
+        <b>${esc(c.name)}</b>（${esc(c.type)} / ${esc(c.color)}）<br>
+        BP: ${esc(c.bp)} ／ 消費AP: ${esc(c.ap)} ／ 必要エナジー: ${esc(c.req)} ／ 発生エナジー: ${esc(c.gen)}<br>
+        特徴: ${esc(c.trait)}<br><br>
+        <span style="color:var(--note)">効果</span><br>${esc(c.eff)}<br><br>
+        <span style="color:var(--note)">トリガー</span><br>${esc(c.trig)}
+      </div>
+    </div>`, [{label:'閉じる', fn:closeModal}]);
+}
+
+function deckEntries(){ return Object.entries(builder.deck).map(([no,n])=>({c:CARDS[no],n})); }
+
+function renderBuilder(){
+  renderGrid();
+  renderDeckPane();
+}
+
+function renderDeckPane(){
+  const es = deckEntries();
+  const total = es.reduce((s,e)=>s+e.n,0);
+  $('#deck-count').textContent = total;
+  // 検証
+  const works = [...new Set(es.map(e=>e.c.work))];
+  const trigCnt = {スペシャル:0,カラー:0,ファイナル:0};
+  es.forEach(e=>{ if(trigCnt[e.c.trigK]!==undefined) trigCnt[e.c.trigK]+=e.n; });
+  let v = [];
+  v.push(total===50?'<span class="okc">✓ 50枚</span>':`<span class="ng">枚数 ${total}/50</span>`);
+  if(works.length>1) v.push(`<span class="ng">✗ 作品が混在: ${works.map(esc).join(' / ')}</span>`);
+  for(const[k,n] of Object.entries(trigCnt)) if(n>4) v.push(`<span class="ng">✗ ${k}トリガーが${n}枚（4枚まで）</span>`);
+  const baseTot = {};
+  es.forEach(e=>{ const b=baseOf(e.c.no); (baseTot[b] ||= {n:0,max:e.c.max,name:e.c.name}).n += e.n; });
+  for(const t of Object.values(baseTot)) if(t.n>t.max) v.push(`<span class="ng">✗ ${esc(t.name)}が計${t.n}枚（${t.max}枚まで）</span>`);
+  $('#deck-valid').innerHTML = v.join('　');
+  // リスト
+  $('#deck-list').innerHTML = es.sort((a,b)=>a.c.no.localeCompare(b.c.no)).map(e=>`
+    <div class="dl-row">
+      <span class="x">${e.n}×</span>
+      <span class="nm" onclick="cardDetail('${e.c.no}')">${esc(e.c.name)}（${esc(e.c.color)}/必要:${esc(e.c.req)}${e.c.type!=='キャラクター'?'/'+esc(e.c.type):''}）</span>
+      <button onclick="chgCount('${e.c.no}',-1)">−</button><button onclick="chgCount('${e.c.no}',1)">＋</button>
+    </div>`).join('');
+  refreshSavedList();
+}
+
+/* --- 保存（localStorage） --- */
+function allDecks(){ try{return JSON.parse(localStorage.getItem('ua_decks')||'{}');}catch(e){return{};} }
+function refreshSavedList(){
+  const sel = $('#saved-decks'); const cur = sel.value;
+  sel.innerHTML = Object.keys(allDecks()).map(n=>`<option>${esc(n)}</option>`).join('') || '<option value="">（保存デッキなし）</option>';
+  if(cur) sel.value = cur;
+}
+function saveDeck(){
+  const name = $('#deck-name').value.trim() || '無名のデッキ';
+  const d = allDecks(); d[name] = {...builder.deck};
+  localStorage.setItem('ua_decks', JSON.stringify(d));
+  refreshSavedList(); $('#saved-decks').value = name;
+  alert(`「${name}」を保存しました`);
+}
+function loadDeck(){
+  const name = $('#saved-decks').value; const d = allDecks();
+  if(!d[name]) return;
+  builder.deck = {...d[name]}; $('#deck-name').value = name;
+  const first = Object.keys(builder.deck)[0];
+  if(first && CARDS[first]) $('#f-work').value = CARDS[first].work;
+  renderBuilder();
+}
+function deleteDeck(){
+  const name = $('#saved-decks').value; const d = allDecks();
+  if(!d[name] || !confirm(`「${name}」を削除しますか？`)) return;
+  delete d[name]; localStorage.setItem('ua_decks', JSON.stringify(d)); refreshSavedList();
+}
+function openCodeModal(){
+  const code = Object.entries(builder.deck).map(([no,n])=>`${no}*${n}`).join(',');
+  openModal('デッキコード', `
+    <p style="color:var(--dim);margin-bottom:6px">コピーして保存・共有。貼り付けて「読み込む」で復元。</p>
+    <textarea id="code-ta" style="width:100%;height:120px">${esc(code)}</textarea>`,
+    [{label:'読み込む', fn:()=>{
+      const t = $('#code-ta').value.trim(); const d = {};
+      t.split(',').forEach(p=>{ const [no,n]=p.trim().split('*'); if(CARDS[no]) d[no]=Math.min(+n||1, CARDS[no].max); });
+      builder.deck = d;
+      const first = Object.keys(d)[0];
+      if(first) $('#f-work').value = CARDS[first].work;
+      renderBuilder(); closeModal();
+    }},{label:'閉じる', fn:closeModal}]);
+}
+
+/* ================= モーダル・コンテキストメニュー ================= */
+let modalLock = false;   // trueの間は背景クリックで閉じない（マリガン等の必須選択用）
+function openModal(title, html, buttons, lock){
+  modalLock = !!lock;
+  $('#modal-title').textContent = title;
+  $('#modal-content').innerHTML = html;
+  const f = $('#modal-foot'); f.innerHTML='';
+  (buttons||[]).forEach(b=>{const btn=document.createElement('button');btn.textContent=b.label;btn.onclick=b.fn;f.appendChild(btn);});
+  $('#modal-bg').classList.add('show');
+}
+function closeModal(){
+  modalLock = false;
+  $('#modal').style.maxWidth = '';
+  $('#modal-bg').classList.remove('show');
+}
+$('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg' && !modalLock) closeModal(); });
+
+let ctxItems = [];
+function openCtx(items, x, y){
+  ctxItems = items;
+  const el = $('#ctx');
+  el.innerHTML = items.map((it,i)=>`<div data-i="${i}">${esc(it.label)}</div>`).join('');
+  el.style.display='block';
+  el.style.left = Math.min(x, innerWidth-220)+'px';
+  el.style.top = Math.min(y, innerHeight - items.length*32 - 10)+'px';
+}
+$('#ctx').addEventListener('click', e=>{
+  const d = e.target.closest('[data-i]'); if(!d) return;
+  $('#ctx').style.display='none';
+  ctxItems[+d.dataset.i].fn();
+});
+document.addEventListener('click', e=>{ if(!e.target.closest('#ctx')) $('#ctx').style.display='none'; });
+
+/* ================= デッキ一覧 ================= */
+let DL_NAMES = [];
+function renderDeckList(){
+  const decks = allDecks();
+  DL_NAMES = Object.keys(decks);
+  $('#decklist-rows').innerHTML = DL_NAMES.map((n,i)=>{
+    const cnt = Object.values(decks[n]).reduce((s,x)=>s+x,0);
+    return `<div class="dlrow"><b>${esc(n)}</b><small>${cnt}枚</small>
+      <button onclick="dlEdit(${i})">編集</button>
+      <button onclick="dlView(${i})">確認</button>
+      <button onclick="dlDelete(${i})">削除</button></div>`;
+  }).join('') || '<p style="color:var(--dim);text-align:center">保存済みのデッキはありません。「＋ 新規作成」から作成してください。</p>';
+}
+function dlNew(){
+  builder.deck = {};
+  $('#deck-name').value = '新しいデッキ';
+  showScreen('builder');
+}
+function dlEdit(i){
+  const name = DL_NAMES[i]; const d = allDecks();
+  if(!d[name]) return;
+  builder.deck = {...d[name]};
+  $('#deck-name').value = name;
+  const first = Object.keys(builder.deck)[0];
+  if(first && CARDS[first]) $('#f-work').value = CARDS[first].work;
+  showScreen('builder');
+}
+// デッキ確認: 必要エナジーが低い順に、同名カードを枚数分並べて画像表示
+function dlView(i){
+  const name = DL_NAMES[i]; const d = allDecks()[name];
+  if(!d) return;
+  const entries = Object.entries(d).map(([no,n])=>({no, n, c:CARDS[no]})).filter(e=>e.c && e.n>0);
+  entries.sort((a,b)=> (a.c.reqN - b.c.reqN) || a.c.name.localeCompare(b.c.name,'ja') || a.no.localeCompare(b.no));
+  const total = entries.reduce((s,e)=>s+e.n, 0);
+  const html = '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+    entries.map(e=>{
+      let s = '';
+      for(let k=0;k<e.n;k++)
+        s += `<div style="width:96px;flex-shrink:0">${visualHTML(e.no,'gimg').replace('class="gimg"',`class="gimg" onclick="showPopup('${e.no}')"`)}</div>`;
+      return s;
+    }).join('') +
+    '</div><p style="color:var(--dim);font-size:11px;margin-top:8px">必要エナジーが低い順に並んでいます。カードをクリックすると詳細を表示します。</p>';
+  openModal(`デッキ確認「${esc(name)}」 ${total}枚`, html, [{label:'閉じる', fn:closeModal}]);
+  $('#modal').style.maxWidth = '1100px';
+}
+function dlDelete(i){
+  const name = DL_NAMES[i];
+  if(!confirm(`デッキ「${name}」を削除しますか？（元に戻せません）`)) return;
+  const d = allDecks(); delete d[name];
+  localStorage.setItem('ua_decks', JSON.stringify(d));
+  renderDeckList();
+}
+
+/* ================= 対戦 ================= */
+let G = null;         // ゲーム全体の状態
+let uidc = 0;
+let selHist = [];     // 選択履歴 [{pid, id, seq}]
+let selSeq = 0;
+
+const pname = pid => NET ? ((G && G.names && G.names[pid]) || (pid===0 ? 'プレイヤー1' : 'プレイヤー2')) : (pid===0 ? '自分側' : '相手側');
+function newInst(no, face){ return {id:nextId(), no, rest:false, face:face||'up', memo:0, memoClear:true, under:[]}; }
+
+function openBattleSetup(fromBuilder){
+  const saved = allDecks();
+  const names = Object.keys(saved);
+  const opts = names.map(n=>`<option>${esc(n)}</option>`).join('');
+  const curOpt = fromBuilder && Object.keys(builder.deck).length ? `<option value="__cur__">（現在編集中の構成）</option>` : '';
+  if(!opts && !curOpt){ alert('保存済みデッキがありません。先にデッキ構築で作成してください。'); return; }
+  openModal('一人回し セットアップ', `
+    <div style="line-height:2.4">
+      自分側（下）のデッキ: <select id="su-d0">${curOpt}${opts}</select><br>
+      相手側（上）のデッキ: <select id="su-d1">${curOpt}${opts}</select><br>
+      先攻: <label><input type="radio" name="su-first" value="0" checked> 自分側</label>
+      　<label><input type="radio" name="su-first" value="1"> 相手側</label>
+      　<label><input type="radio" name="su-first" value="2"> ランダム</label><br>
+      <span style="color:var(--dim);font-size:11px">※マリガン（手札引き直し）は対戦開始後、先攻のプレイヤーから順に選択します</span>
+    </div>`,
+    [{label:'対戦開始', fn:()=>{
+      const get = id => { const v=$('#'+id).value; return v==='__cur__' ? {...builder.deck} : {...allDecks()[v]}; };
+      let first = +document.querySelector('[name=su-first]:checked').value;
+      if(first===2) first = Math.random()<0.5 ? 0 : 1;      // ランダム
+      const d0 = get('su-d0'), d1 = get('su-d1');
+      closeModal();                                          // 先に閉じる（この後マリガン画面が開くため）
+      startBattle(d0, d1, first);
+    }},{label:'やめる', fn:closeModal}]);
+}
+
+function startBattle(deck0, deck1, first){
+  G = { first, turn:first, turnCount:[0,0], globalTurn:1, extraUsed:false, log:[],
+        P:[deck0,deck1].map(d=>{
+          const deck = [];
+          Object.entries(d).forEach(([no,n])=>{ for(let i=0;i<n;i++) deck.push(newInst(no,'down')); });
+          shuffleArr(deck);
+          return { deck, hand:[], front:[], energy:[], life:[], grave:[], removed:[], ap:[] };
+        }),
+        events:[] };
+  selHist=[];
+  showScreen('battle');
+  $('#battle-title').textContent = NET ? '友人と対戦' : '一人回し';
+  // 手順3: 手札7枚
+  [0,1].forEach(pid=>{
+    const p=G.P[pid];
+    for(let i=0;i<7;i++){ const c=p.deck.shift(); if(c){c.face='up'; p.hand.push(c);} }
+  });
+  render();
+  log(`=== 対戦開始（先攻: ${pname(first)}） ===`, 'sys');
+  // 手順4: 先攻のプレイヤーから順にマリガンを選択 → 手順5: ライフ配置
+  if(NET){ G.names = NET.names || ['プレイヤー1','プレイヤー2']; G.phase='mulligan'; G.mulTurn=first; G.mulDone=[false,false]; G.v=0; netPush(); netCheckPhase(); }
+  else mulliganPrompt(first, ()=> mulliganPrompt(1-first, finishSetup));
+}
+
+// マリガン確認画面（手札を大きく並べ、カードクリックで詳細ポップアップ）
+function mulliganPrompt(pid, done){
+  const p = G.P[pid];
+  const grid = `<div style="display:flex;gap:10px;justify-content:center;overflow-x:auto;padding:6px 0">` +
+    p.hand.map(c=>`<div style="width:140px;flex-shrink:0">` +
+      visualHTML(c.no,'gimg').replace('class="gimg"',`class="gimg" onclick="showPopup('${c.no}')"`) +
+      `</div>`).join('') +
+    `</div><p style="color:var(--dim);font-size:11px;margin-top:10px;text-align:center">カードをクリックすると詳細を表示します。「はい」を選ぶと7枚すべて山札に戻し、新しく7枚を引き直します（1回まで）。</p>`;
+  openModal(`マリガンしますか？（${pname(pid)}）`, grid,
+    [{label:'はい（7枚引き直す）', fn:()=>{ doMulligan(pid); closeModal(); done(); }},
+     {label:'いいえ（この手札で始める）', fn:()=>{ log(`${pname(pid)}: マリガンなし`, pid); closeModal(); done(); }}],
+    true);   // 背景クリックでは閉じない
+  $('#modal').style.maxWidth = '1300px';
+}
+
+// 手札を横に置き、新たに7枚引き直し、元の手札を山札に加えてシャッフル（公式手順4）
+function doMulligan(pid){
+  const p = G.P[pid];
+  const old = p.hand.splice(0);
+  for(let i=0;i<7;i++){ const c=p.deck.shift(); if(c){c.face='up'; p.hand.push(c);} }
+  old.forEach(c=>{ c.face='down'; p.deck.push(c); });
+  shuffleArr(p.deck);
+  log(`${pname(pid)}: マリガン（7枚引き直し）`, pid);
+  render();
+}
+
+// 手順5: 両者ライフ7枚を配置してターン開始
+function finishSetup(){
+  [0,1].forEach(pid=>{
+    const p=G.P[pid];
+    for(let i=0;i<7;i++){ const c=p.deck.shift(); if(c) p.life.push(c); }
+  });
+  log('両者、山札の上から7枚を裏向きのままライフエリアに配置', 'sys');
+  startAuto();
+}
+
+function log(text, who){
+  G.log.push({text, who});
+  const el = $('#battle-log');
+  const d = document.createElement('div');
+  d.textContent = text;
+  d.className = who==='sys' ? 'sys' : ('p'+who);
+  el.prepend(d);
+}
+
+/* --- カード検索（全ゾーン横断） --- */
+function findCard(id){
+  for(let pid=0;pid<2;pid++){
+    const p = G.P[pid];
+    for(const zone of ['hand','front','energy','life','grave','removed','deck']){
+      const idx = p[zone].findIndex(c=>c.id===id);
+      if(idx>=0) return {pid, zone, arr:p[zone], idx, inst:p[zone][idx]};
+    }
+  }
+  const idx = G.events.findIndex(e=>e.inst.id===id);
+  if(idx>=0) return {pid:G.events[idx].owner, zone:'events', arr:G.events, idx, inst:G.events[idx].inst};
+  return null;
+}
+function latestSel(pid, zone, afterSeq){
+  for(let i=selHist.length-1;i>=0;i--){
+    const s = selHist[i];
+    if(pid!==undefined && s.pid!==pid) continue;
+    if(afterSeq!==undefined && s.seq<=afterSeq) continue;
+    const loc = findCard(s.id);
+    if(!loc) continue;
+    if(zone && loc.zone!==zone) continue;
+    return {...s, loc};
+  }
+  return null;
+}
+function clearSel(){ selHist=[]; }
+
+/* --- 移動 --- */
+function flatten(inst){ // 束をバラして単カード配列に（先頭=inst本体）
+  const list = [inst, ...inst.under.map(u=>newInst(u.no, u.face))];
+  inst.under = [];
+  return list;
+}
+function dispName(inst){ return inst.face==='down' ? '裏向きのカード' : `[${CARDS[inst.no]?.name||inst.no}]`; }
+
+function moveTo(id, destPid, destZone, finalize){
+  const loc = findCard(id); if(!loc) return;
+  const inst = loc.inst;
+  const name = dispName(inst);
+  // 取り出し
+  if(loc.zone==='events') loc.arr.splice(loc.idx,1); else loc.arr.splice(loc.idx,1);
+  const P = G.P[destPid];
+  const stackNote = inst.under.length ? `（束${inst.under.length+1}枚ごと）` : '';
+  const keepState = (loc.zone==='front'||loc.zone==='energy') && (destZone==='front'||destZone==='energy') && loc.pid===destPid;
+  if(!keepState) inst.frozen = false;   // ラインの外へ出たらフリーズ解除
+
+  if(destZone==='front'||destZone==='energy'){
+    inst.face='up';
+    inst.rest = keepState ? inst.rest : true;        // レストイン。ライン間の移動だけ状態維持
+    if(!keepState) {inst.memo=0;}
+    P[destZone].push(inst);
+  } else if(destZone==='hand'){
+    flatten(inst).forEach(c=>{c.face='up';c.rest=false;c.memo=0;P.hand.push(c);});
+  } else if(destZone==='deckTop'){
+    flatten(inst).reverse().forEach(c=>{c.face='down';c.rest=false;c.memo=0;P.deck.unshift(c);});
+  } else if(destZone==='deckBottom'){
+    flatten(inst).forEach(c=>{c.face='down';c.rest=false;c.memo=0;P.deck.push(c);});
+  } else if(destZone==='life'){
+    flatten(inst).forEach(c=>{c.face='down';c.rest=false;c.memo=0;P.life.unshift(c);});
+  } else if(destZone==='grave'||destZone==='removed'){
+    flatten(inst).forEach(c=>{c.face='up';c.rest=false;c.memo=0;P[destZone].push(c);});
+  } else if(destZone==='events'){
+    inst.face='up'; inst.rest=false;
+    G.events.push({owner:destPid, inst});
+  }
+  const zoneNames = {front:'フロントL',energy:'エナジーL',hand:'手札',deckTop:'山札の上',deckBottom:'山札の下',
+                     life:'ライフ',grave:'場外',removed:'リムーブ',events:'公開エリア'};
+  log(`${pname(loc.pid)}: ${name}${stackNote} を ${destPid!==loc.pid?pname(destPid)+'の':''}${zoneNames[destZone]}へ`, loc.pid);
+  if(finalize!==false){ clearSel(); render(); }
+}
+
+/* --- 基本操作 --- */
+function drawCard(pid, verbose){
+  const p = G.P[pid];
+  if(!p.deck.length){ log(`${pname(pid)}: 山札が0枚のためドローできません（敗北条件）`, 'sys'); return; }
+  const c = p.deck.shift(); c.face='up'; p.hand.push(c);
+  if(verbose!==false) log(`${pname(pid)}: ドロー（残り${p.deck.length}枚）`, pid);
+  render();
+}
+function doShuffle(pid){ shuffleArr(G.P[pid].deck); log(`${pname(pid)}: 山札をシャッフル`, pid); render(); }
+
+function extraDraw(){
+  if(NET && G.turn!==NET.myPid){ log('あなたのターンではありません（エクストラドローはターンプレイヤーのみ）', 'sys'); return; }
+  if(G.extraUsed){ log('エクストラドローは1ターンに1回まで', 'sys'); return; }
+  const p = G.P[G.turn];
+  const ap = p.ap.find(a=>!a.rest);
+  if(!ap){ log('アクティブなAPがありません', 'sys'); return; }
+  ap.rest = true; G.extraUsed = true;
+  log(`${pname(G.turn)}: エクストラドロー（AP-1）`, G.turn);
+  drawCard(G.turn, false); render();
+}
+
+function endTurn(){
+  if(NET && G.turn!==NET.myPid){ log('あなたのターンではありません（ターン終了はターンプレイヤーのみ）', 'sys'); return; }
+  const p = G.P[G.turn];
+  [...p.front, ...p.energy].forEach(c=>{                       // エンド時アンタップ（AP除く・フリーズ中は据え置き）
+    if(c.frozen){ c.frozen=false; log(`${pname(G.turn)}: ${dispName(c)} はフリーズ中のためアクティブにしません（フリーズ解除）`, 'sys'); }
+    else c.rest=false; });
+  [0,1].forEach(pid=>{ const q=G.P[pid];
+    ['front','energy'].forEach(z=>q[z].forEach(c=>{ if(c.memoClear) c.memo=0; })); });
+  if(p.hand.length>8) log(`${pname(G.turn)}: 手札が${p.hand.length}枚（8枚を超えた分はリムーブへ移してください）`, 'sys');
+  log(`=== ${pname(G.turn)}のターン終了 ===`, 'sys');
+  G.turn = 1-G.turn; G.globalTurn++;
+  startAuto();
+}
+function startAuto(){
+  const pid = G.turn, p = G.P[pid];
+  G.turnCount[pid]++; G.extraUsed = false;
+  const t = G.turnCount[pid];
+  [...p.front, ...p.energy].forEach(c=>{
+    if(c.frozen){ c.frozen=false; log(`${pname(pid)}: ${dispName(c)} はフリーズ中のためアクティブにしません（フリーズ解除）`, 'sys'); }
+    else c.rest=false; });
+  p.ap.forEach(a=>a.rest=false);
+  let add = pid===G.first ? 1 : (t===1 ? 2 : (t===2 ? 0 : 1));
+  let added = 0;
+  while(add-->0 && p.ap.length<3){ p.ap.push({rest:false}); added++; }
+  log(`=== ${pname(pid)}のターン${t} 開始（アンタップ${added?` / AP+${added}`:''}） ===`, 'sys');
+  if(pid===G.first && t===1) log(`${pname(pid)}: 先攻1ターン目はドローなし`, 'sys');
+  else drawCard(pid, true);
+  render();
+}
+
+/* --- アタック / ブロック --- */
+function abPress(side){
+  if(NET && side!==NET.myPid){ log('相手側の宣言は相手プレイヤーが行います', 'sys'); return; }
+  const own = latestSel(side, 'front');
+  if(!own){ log(`${pname(side)}のフロントLのカードを選択してから押してください`, 'sys'); return; }
+  const inst = own.loc.inst;
+  if(G.turn === side){
+    const tgt = latestSel(1-side, 'front', own.seq);
+    if(inst.rest) log(`（注意: レスト状態のキャラでアタック宣言）`, 'sys');
+    inst.rest = true;
+    log(`${pname(side)}: [${CARDS[inst.no].name}] アタック宣言 → ${tgt ? '['+CARDS[tgt.loc.inst.no].name+']（キャラ対象）' : '相手ライフ'}`, side);
+  } else {
+    inst.rest = true;
+    log(`${pname(side)}: [${CARDS[inst.no].name}] ブロック宣言`, side);
+  }
+  clearSel(); render();
+}
+
+/* --- イベント宣言 --- */
+function declareEvent(){
+  const s = latestSel(undefined, 'hand');
+  if(!s){ log('手札のカードを選択してから押してください', 'sys'); return; }
+  const inst = s.loc.inst;
+  log(`${pname(s.loc.pid)}: [${CARDS[inst.no].name}] 使用宣言`, s.loc.pid);
+  moveTo(inst.id, s.loc.pid, 'events');
+}
+
+/* --- 宣言（選択中のカードをログに記録する定型操作） --- */
+function declareEffect(){
+  const s = latestSel();
+  if(!s){ log('カードを選択してから押してください', 'sys'); return; }
+  log(`${pname(s.loc.pid)}: ${dispName(s.loc.inst)} の効果を宣言`, s.loc.pid);
+  render();
+}
+function declareTarget(){
+  const s = latestSel();
+  if(!s){ log('カードを選択してから押してください', 'sys'); return; }
+  log(`${pname(s.loc.pid)}: ${dispName(s.loc.inst)} を対象に指定`, s.loc.pid);
+  render();
+}
+// フリーズ: ❄マークを付け、次にアクティブになるタイミングを1回だけ飛ばして自動解除
+function toggleFreeze(){
+  const s = latestSel();
+  if(!s){ log('カードを選択してから押してください', 'sys'); return; }
+  if(s.loc.zone!=='front' && s.loc.zone!=='energy'){ log('フリーズはフロントL・エナジーLのカードに指定してください', 'sys'); return; }
+  const inst = s.loc.inst;
+  inst.frozen = !inst.frozen;
+  log(`${pname(s.loc.pid)}: ${dispName(inst)} を${inst.frozen ? 'フリーズ指定（次にアクティブになるタイミングを1回飛ばします）' : 'フリーズ解除'}`, s.loc.pid);
+  render();
+}
+
+/* --- 山札メニュー --- */
+function deckMenu(pid, x, y){
+  openCtx([
+    {label:'1枚ドロー', fn:()=>drawCard(pid,true)},
+    {label:'上からX枚を見る', fn:()=>viewTopX(pid)},
+    {label:'上からX枚を場外へ', fn:()=>{ const n=+prompt('何枚を場外に置きますか？','1')||0;
+        const p=G.P[pid]; const names=[];
+        for(let i=0;i<n&&p.deck.length;i++){const c=p.deck.shift();c.face='up';p.grave.push(c);names.push(CARDS[c.no].name);}
+        if(names.length) log(`${pname(pid)}: 山札の上から${names.length}枚を場外へ（${names.join('、')}）`, pid);
+        render(); }},
+    {label:'上から1枚をライフへ（裏向き）', fn:()=>{ const p=G.P[pid];
+        if(!p.deck.length) return; const c=p.deck.shift(); c.face='down'; p.life.unshift(c);
+        log(`${pname(pid)}: 山札の上から1枚をライフへ`, pid); render(); }},
+    {label:'上からX枚を公開（公開エリアへ）', fn:()=>{ const n=+prompt('何枚公開しますか？','1')||0;
+        const p=G.P[pid]; const names=[];
+        for(let i=0;i<n && p.deck.length;i++){ const c=p.deck.shift(); c.face='up'; c.rest=false;
+          G.events.push({owner:pid, inst:c}); names.push(CARDS[c.no].name); }
+        if(names.length) log(`${pname(pid)}: 山札の上から${names.length}枚を公開（${names.join('、')}）`, pid);
+        render(); }},
+    {label:'山札から探す（閉じると自動シャッフル）', fn:()=>searchDeck(pid)},
+    {label:'シャッフル', fn:()=>doShuffle(pid)},
+  ], x, y);
+}
+
+const DESTS = [['手札','hand'],['フロントL','front'],['エナジーL','energy'],['場外','grave'],['リムーブ','removed']];
+
+// カード詳細のポップアップ（モーダルの上からでも開ける）
+function showPopup(no){
+  const c = CARDS[no];
+  $('#popup').innerHTML = `<div class="box" onclick="event.stopPropagation()">
+    <div class="pimg">${visualHTML(no,'gimg')}</div>
+    <div class="ptext">
+      <b>${esc(c.name)}</b>（${esc(c.type)}）<br>
+      BP:${esc(c.bp)} ／ AP:${esc(c.ap)} ／ 必要:${esc(c.req)} ／ 発生:${esc(c.gen)}<br>特徴: ${esc(c.trait)}
+      <span class="t">効果</span>${esc(c.eff)}
+      <span class="t">トリガー</span>${esc(c.trig)}
+      <div style="margin-top:10px;color:var(--dim);font-size:10px">画面のどこかをクリックで閉じる</div>
+    </div>
+  </div>`;
+  $('#popup').classList.add('show');
+}
+
+function viewTopX(pid){
+  const n = +prompt('山札の上から何枚見ますか？','3')||0;
+  if(n<=0) return;
+  const p = G.P[pid];
+  const temp = p.deck.splice(0, n);
+  log(`${pname(pid)}: 山札の上から${temp.length}枚を見た`, pid);
+  const draw = ()=>{
+    $('#modal-content').innerHTML = temp.map((c,i)=>`
+      <div class="mrow">
+        <span style="color:var(--dim);width:20px">${i+1}</span>
+        ${visualHTML(c.no,'gimg mini').replace('class="gimg mini"',`class="gimg mini" onclick="showPopup('${c.no}')"`)}
+        <div class="info"><b>${esc(CARDS[c.no].name)}</b><br>AP:${esc(CARDS[c.no].ap)} ／ 必要:${esc(CARDS[c.no].req)}</div>
+        <div class="acts">
+          <button onclick="tvMove(${i},'up')">↑</button><button onclick="tvMove(${i},'down')">↓</button>
+          ${DESTS.concat([['山札の上へ','deckTop'],['山札の下へ','deckBottom']]).map(([l,z])=>`<button onclick="tvSend(${i},'${z}')">${l}</button>`).join('')}
+        </div>
+      </div>`).join('') || '<p style="color:var(--dim)">残りなし</p>';
+  };
+  window.tvMove = (i,dir)=>{ const j = dir==='up'?i-1:i+1; if(j<0||j>=temp.length) return; [temp[i],temp[j]]=[temp[j],temp[i]]; draw(); };
+  window.tvSend = (i,z)=>{ const c = temp.splice(i,1)[0];
+    if(z==='hand'){c.face='up';c.rest=false;p.hand.push(c);}
+    else if(z==='front'||z==='energy'){c.face='up';c.rest=true;p[z].push(c);}
+    else if(z==='grave'||z==='removed'){c.face='up';p[z].push(c);}
+    else if(z==='deckTop'){c.face='down';c.rest=false;p.deck.unshift(c);}
+    else if(z==='deckBottom'){c.face='down';c.rest=false;p.deck.push(c);}
+    const nm = (z==='deckTop'||z==='deckBottom') ? 'カード1枚' : `[${CARDS[c.no].name}] `;
+    log(`${pname(pid)}: 見ていた${nm}を${({hand:'手札',front:'フロントL',energy:'エナジーL',grave:'場外',removed:'リムーブ',deckTop:'山札の上',deckBottom:'山札の下'})[z]}へ`, pid);
+    draw(); render(); };
+  openModal(`山札の上${temp.length}枚（${pname(pid)}）※カードをクリックで効果を表示`, '',
+    [{label:'閉じる（残りをこの順で山上へ）', fn:()=>{ p.deck.unshift(...temp); closeModal(); render(); }},
+     {label:'閉じる（残りをこの順で山下へ）', fn:()=>{ p.deck.push(...temp); log(`${pname(pid)}: 残りを山札の下へ`, pid); closeModal(); render(); }},
+     {label:'閉じる', fn:()=>{ if(temp.length){ p.deck.unshift(...temp); log(`${pname(pid)}: 残り${temp.length}枚を元の順のまま山札の上へ戻した`, pid); } closeModal(); render(); }}]);
+  draw();
+}
+
+function searchDeck(pid){
+  const p = G.P[pid];
+  const temp = p.deck.splice(0);
+  const draw = ()=>{
+    $('#modal-content').innerHTML = temp.map((c,i)=>`
+      <div class="mrow">
+        ${visualHTML(c.no,'gimg mini').replace('class="gimg mini"',`class="gimg mini" onclick="showPopup('${c.no}')"`)}
+        <div class="info"><b>${esc(CARDS[c.no].name)}</b><br>AP:${esc(CARDS[c.no].ap)} ／ 必要:${esc(CARDS[c.no].req)}</div>
+        <div class="acts">${DESTS.map(([l,z])=>`<button onclick="sdSend(${i},'${z}')">${l}</button>`).join('')}</div>
+      </div>`).join('');
+  };
+  window.sdSend = (i,z)=>{ const c = temp.splice(i,1)[0];
+    if(z==='hand'){c.face='up';c.rest=false;p.hand.push(c);}
+    else if(z==='front'||z==='energy'){c.face='up';c.rest=true;p[z].push(c);}
+    else if(z==='grave'||z==='removed'){c.face='up';p[z].push(c);}
+    log(`${pname(pid)}: 山札から [${CARDS[c.no].name}] を${({hand:'手札',front:'フロントL',energy:'エナジーL',grave:'場外',removed:'リムーブ'})[z]}へ`, pid);
+    draw(); render(); };
+  openModal(`山札から探す（${pname(pid)}）※カードをクリックで効果を表示`, '',
+    [{label:'閉じる（自動シャッフル）', fn:()=>{ p.deck.push(...temp); shuffleArr(p.deck); log(`${pname(pid)}: 山札をシャッフル`, pid); closeModal(); render(); }}]);
+  draw();
+}
+
+/* --- ライフ --- */
+function lifeMenu(pid, x, y){
+  openCtx([
+    {label:'ライフチェック（1番上をイベント宣言エリアに公開）', fn:()=>lifeCheck(pid)},
+    {label:'枚数をログに記録', fn:()=>log(`${pname(pid)}: ライフ${G.P[pid].life.length}枚`, pid)},
+  ], x, y);
+}
+function lifeCheck(pid){
+  const p = G.P[pid];
+  if(!p.life.length){ log(`${pname(pid)}: ライフが0枚です`, 'sys'); return; }
+  const c = p.life.shift(); c.face='up'; c.rest=false;
+  G.events.push({owner:pid, inst:c});
+  const card = CARDS[c.no];
+  log(`${pname(pid)}: ライフチェック → [${card.name}] を公開${card.trigK?`（トリガー: ${card.trigK}）`:'（トリガーなし）'}`, pid);
+  render();
+}
+
+/* --- ゾーン一覧（場外・リムーブ・束） --- */
+function zoneViewer(pid, zone){
+  const p = G.P[pid];
+  const title = zone==='grave'?'場外':'リムーブ';
+  const draw = ()=>{
+    $('#modal-content').innerHTML = p[zone].map((c,i)=>`
+      <div class="mrow">
+        ${visualHTML(c.no,'gimg mini').replace('class="gimg mini"',`class="gimg mini" onclick="showPopup('${c.no}')"`)}
+        <div class="info"><b>${esc(CARDS[c.no].name)}</b><br>AP:${esc(CARDS[c.no].ap)} ／ 必要:${esc(CARDS[c.no].req)}</div>
+        <div class="acts">
+          ${[['手札','hand'],['フロントL','front'],['エナジーL','energy'],[zone==='grave'?'リムーブ':'場外',zone==='grave'?'removed':'grave'],['山上','deckTop'],['山下','deckBottom'],['ライフ','life']]
+            .map(([l,z])=>`<button onclick="zvSend(${i},'${z}')">${l}</button>`).join('')}
+        </div>
+      </div>`).join('') || '<p style="color:var(--dim)">空</p>';
+  };
+  window.zvSend = (i,z)=>{ const c = p[zone][i]; moveTo(c.id, pid, z); draw(); };
+  openModal(`${title}（${pname(pid)}）${p[zone].length}枚`, '', [{label:'閉じる', fn:closeModal}]);
+  draw();
+}
+
+function stackViewer(id){
+  const loc = findCard(id); if(!loc) return;
+  const inst = loc.inst, pid = loc.pid;
+  const draw = ()=>{
+    $('#modal-content').innerHTML = `
+      <div class="mrow"><b style="width:80px">一番上</b>${visualHTML(inst.no,'gimg mini')}
+        <div class="info"><b>${esc(CARDS[inst.no].name)}</b></div></div>` +
+      inst.under.map((u,i)=>`
+      <div class="mrow">
+        <span style="color:var(--dim);width:80px">下${i+1} ${u.face==='down'?'（裏）':''}</span>
+        ${visualHTML(u.no,'gimg mini')}
+        <div class="info"><b>${esc(CARDS[u.no].name)}</b></div>
+        <div class="acts">
+          <button onclick="svFlip(${i})">表/裏</button>
+          ${[['場外','grave'],['リムーブ','removed'],['手札','hand'],['山上','deckTop'],['山下','deckBottom'],['場に分離','front']]
+            .map(([l,z])=>`<button onclick="svSend(${i},'${z}')">${l}</button>`).join('')}
+        </div>
+      </div>`).join('');
+  };
+  window.svFlip = i=>{ inst.under[i].face = inst.under[i].face==='down'?'up':'down'; draw(); render(); };
+  window.svSend = (i,z)=>{
+    const u = inst.under.splice(i,1)[0];
+    const c = newInst(u.no, u.face);
+    const p = G.P[pid];
+    if(z==='grave'||z==='removed'){c.face='up';p[z].push(c);}
+    else if(z==='hand'){c.face='up';p.hand.push(c);}
+    else if(z==='deckTop'){c.face='down';p.deck.unshift(c);}
+    else if(z==='deckBottom'){c.face='down';p.deck.push(c);}
+    else if(z==='front'){c.face='up';c.rest=true;p.front.push(c);}
+    log(`${pname(pid)}: [${CARDS[inst.no].name}] の下のカードを${({grave:'場外',removed:'リムーブ',hand:'手札',deckTop:'山札の上',deckBottom:'山札の下',front:'場（分離）'})[z]}へ`, pid);
+    draw(); render();
+  };
+  openModal(`束の中身（${esc(CARDS[inst.no].name)}）`, '', [{label:'閉じる', fn:closeModal}]);
+  draw();
+}
+
+/* --- カードのコンテキストメニュー --- */
+function cardMenu(id, x, y){
+  const loc = findCard(id); if(!loc) return;
+  const inst = loc.inst;
+  if(NET && loc.pid!==NET.myPid && (loc.zone==='hand' || inst.face==='down')){ log('相手の非公開カードは操作できません', 'sys'); return; }
+  const sel = latestSel();
+  const items = [];
+  items.push({label:'公開する（名前をログへ）', fn:()=>log(`${pname(loc.pid)}: [${CARDS[inst.no].name}] を公開`, loc.pid)});
+  items.push({label: inst.rest?'アクティブにする':'レストにする（宣言なし）', fn:()=>{ inst.rest=!inst.rest;
+    log(`${pname(loc.pid)}: ${dispName(inst)} を${inst.rest?'レスト':'アクティブ'}に`, loc.pid); render(); }});
+  items.push({label: inst.face==='down'?'表向きにする':'裏向きにする', fn:()=>{ inst.face = inst.face==='down'?'up':'down';
+    log(`${pname(loc.pid)}: カードを${inst.face==='down'?'裏':'表'}向きに`, loc.pid); render(); }});
+  if(sel && sel.id!==id && (loc.zone==='front'||loc.zone==='energy')){
+    const sInst = findCard(sel.id)?.inst;
+    if(sInst){
+      items.push({label:`▶選択中[${CARDS[sInst.no].name}]をこの上に重ねる（レイド）`, fn:()=>{
+        const sLoc = findCard(sel.id);
+        sLoc.arr.splice(sLoc.idx,1);
+        const loc2 = findCard(id);                    // 抜いた後に位置を取り直す（同じ列内でのズレ対策）
+        sInst.rest = false;                           // レイド後は自動でアクティブ
+        sInst.face = 'up';
+        sInst.memo = 0;
+        sInst.under = [{no:inst.no, face:inst.face}, ...inst.under, ...sInst.under];
+        loc2.arr.splice(loc2.idx,1,sInst);
+        log(`${pname(loc.pid)}: [${CARDS[sInst.no].name}] を [${CARDS[inst.no].name}] にレイド（アクティブで登場）`, loc.pid);
+        clearSel(); render(); }});
+      items.push({label:`▶選択中[${CARDS[sInst.no].name}]をこの下に裏向きで差す`, fn:()=>{
+        const sLoc = findCard(sel.id);
+        sLoc.arr.splice(sLoc.idx,1);
+        inst.under.push({no:sInst.no, face:'down'}, ...sInst.under);
+        log(`${pname(loc.pid)}: [${CARDS[inst.no].name}] の下に裏向きで1枚差した`, loc.pid);
+        clearSel(); render(); }});
+    }
+  }
+  if(inst.under.length) items.push({label:`束を見る（${inst.under.length+1}枚）`, fn:()=>stackViewer(id)});
+  items.push({label:'BP +1000', fn:()=>{ inst.memo+=1000; render(); }});
+  items.push({label:'BP −1000', fn:()=>{ inst.memo-=1000; render(); }});
+  if(inst.memo) items.push({label:'BPメモを消す', fn:()=>{ inst.memo=0; render(); }});
+  items.push({label:`メモ:ターン終了で${inst.memoClear?'消える✓':'残す'}（切替）`, fn:()=>{ inst.memoClear=!inst.memoClear; render(); }});
+  openCtx(items, x, y);
+}
+
+/* --- 描画 --- */
+function bcardHTML(inst, forceBack){
+  const c = CARDS[inst.no];
+  const down = forceBack===true || inst.face==='down';
+  const cls = ['bcard', inst.rest?'rest':'', down?'facedown':'',
+               selHist.some(s=>s.id===inst.id)?'sel':''].join(' ');
+  const inner = down ? '' :
+    `<div class="fb"><span class="sub">AP${esc(c.ap)} 必要${esc(c.req)}</span><b>${esc(c.name)}</b><span class="bp">${c.bp!=='-'?'BP'+esc(c.bp):esc(c.type)}</span></div>
+     <img src="${IMAGE_DIR}${esc(c.img)}" onerror="this.remove()" alt="">`;
+  const memo = inst.memo ? `<span class="memo">${inst.memo>0?'+':''}${inst.memo}</span>` : '';
+  const stk = inst.under.length ? `<span class="stk">${inst.under.length+1}</span>` : '';
+  const frz = inst.frozen ? `<span class="frz">❄</span>` : '';
+  return `<div class="${cls}" data-cid="${inst.id}">${inner}${memo}${stk}${frz}</div>`;
+}
+function dropChip(pid, zone, label){
+  return latestSel() ? `<span class="drop" data-move="${pid}:${zone}">⊕${label||'ここに'}</span>` : '';
+}
+
+function render(){
+  if(!G) return;
+  // サイドバー
+  $('#turn-ind').innerHTML = `<b>${pdisp(G.turn)}</b>のターン ${G.turnCount[G.turn]}<br>通算${G.globalTurn}ターン目`;
+  $('#btn-extra').disabled = G.extraUsed;
+
+  const zoneHTML = (pid) => {
+    const p = G.P[pid];
+    const apHTML = `<div class="zbox">AP<br>${p.ap.map((a,i)=>`<span class="apchip ${a.rest?'rest':''}" data-ap="${pid}:${i}">AP</span>`).join('')||'<span style="color:var(--dim)">なし</span>'}</div>`;
+    const deckHTML = `<div class="zbox solid" data-deck="${pid}">山札 ${p.deck.length}<br><span style="color:var(--note);font-size:9px">クリックでメニュー</span>
+      <div class="drops">${latestSel()?`<span class="drop" data-move="${pid}:deckTop">⊕上</span><span class="drop" data-move="${pid}:deckBottom">⊕下</span>`:''}</div></div>`;
+    const lifeHTML = `<div class="zbox" data-life="${pid}">ライフ ${p.life.length}<br><span style="color:var(--note);font-size:9px">クリックでチェック等</span>
+      <div class="drops">${dropChip(pid,'life','')}</div></div>`;
+    const gvHTML = `<div class="zbox"><span data-view="${pid}:grave" style="text-decoration:underline">場外 ${p.grave.length}</span> / <span data-view="${pid}:removed" style="text-decoration:underline">リムーブ ${p.removed.length}</span>
+      <div class="drops">${latestSel()?`<span class="drop" data-move="${pid}:grave">⊕場外</span><span class="drop" data-move="${pid}:removed">⊕リム</span>`:''}</div></div>`;
+    const frontHTML = `<div class="lz"><span class="lbl">${pdisp(pid)} フロントライン</span>${p.front.map(c=>bcardHTML(c)).join('')}<span class="drops">${dropChip(pid,'front')}</span></div>`;
+    const energyHTML = `<div class="lz"><span class="lbl">${pdisp(pid)} エナジーライン</span>${p.energy.map(c=>bcardHTML(c)).join('')}<span class="drops">${dropChip(pid,'energy')}</span></div>`;
+    return {apHTML, deckHTML, lifeHTML, gvHTML, frontHTML, energyHTML};
+  };
+  const MYP = NET ? NET.myPid : 0, OPP = 1-MYP;   // オンライン時は自分側を常に下に表示
+  const t = zoneHTML(OPP), b = zoneHTML(MYP);
+  const evHTML = `<div class="event-strip"><span class="tag">イベント宣言 / 公開エリア</span>
+    ${G.events.map(e=>bcardHTML(e.inst)).join('')}
+    <span style="margin-left:auto" class="drops">${dropChip(MYP,'events')}</span></div>`;
+
+  $('#field').innerHTML = `
+    <div class="hand-row opp"><span class="tag">相手手札 ${G.P[OPP].hand.length}</span>${G.P[OPP].hand.map(c=>bcardHTML(c, !!NET)).join('')}<span style="margin-left:auto" class="drops">${dropChip(OPP,'hand')}</span></div>
+    <div class="parea opp">
+      <div class="pside">${t.apHTML}${t.deckHTML}</div>
+      <div class="abcol"><button class="abbtn" data-ab="${OPP}">⚔ アタック / ブロック</button></div>
+      <div class="lines">${t.energyHTML}${t.frontHTML}</div>
+      <div class="abcol"></div>
+      <div class="pside">${t.lifeHTML}${t.gvHTML}</div>
+    </div>
+    ${evHTML}
+    <div class="parea">
+      <div class="pside">${b.lifeHTML}${b.gvHTML}</div>
+      <div class="abcol"></div>
+      <div class="lines">${b.frontHTML}${b.energyHTML}</div>
+      <div class="abcol"><button class="abbtn" data-ab="${MYP}">⚔ アタック / ブロック</button></div>
+      <div class="pside">${b.deckHTML}${b.apHTML}</div>
+    </div>
+    <div class="hand-row own"><span class="tag">手札 ${G.P[MYP].hand.length}</span>${G.P[MYP].hand.map(c=>bcardHTML(c)).join('')}<span style="margin-left:auto" class="drops">${dropChip(MYP,'hand')}</span></div>`;
+  netMarkDirty();   // オンライン対戦中は描画のたびに状態を同期送信（一人回しでは何もしない）
+}
+
+/* 盤面のイベント処理（親要素でまとめて拾う） */
+$('#field').addEventListener('click', e=>{
+  const cid = e.target.closest('[data-cid]');
+  if(cid){ selectCard(+cid.dataset.cid); return; }
+  const mv = e.target.closest('[data-move]');
+  if(mv){
+    // 選択中のカードを全て（選択した順に）まとめて移動する
+    const ids = [...new Set(selHist.map(x=>x.id))].filter(i=>findCard(i));
+    if(ids.length){
+      const [pid,z] = mv.dataset.move.split(':');
+      ids.forEach(cid=>{ const dp = z==='events' ? findCard(cid).pid : +pid; moveTo(cid, dp, z, false); });
+      clearSel(); render();
+    } return; }
+  const ab = e.target.closest('[data-ab]');
+  if(ab){ abPress(+ab.dataset.ab); return; }
+  const dk = e.target.closest('[data-deck]');
+  if(dk){ deckMenu(+dk.dataset.deck, e.clientX, e.clientY); e.stopPropagation(); return; }
+  const lf = e.target.closest('[data-life]');
+  if(lf){ lifeMenu(+lf.dataset.life, e.clientX, e.clientY); e.stopPropagation(); return; }
+  const vw = e.target.closest('[data-view]');
+  if(vw){ const [pid,z] = vw.dataset.view.split(':'); zoneViewer(+pid, z); return; }
+  const ap = e.target.closest('[data-ap]');
+  if(ap){ const [pid,i] = ap.dataset.ap.split(':'); const a = G.P[+pid].ap[+i]; a.rest=!a.rest;
+    log(`${pname(+pid)}: APを${a.rest?'レスト':'アクティブ'}に`, +pid); render(); return; }
+});
+$('#field').addEventListener('contextmenu', e=>{
+  const cid = e.target.closest('[data-cid]');
+  if(cid){ e.preventDefault(); cardMenu(+cid.dataset.cid, e.clientX, e.clientY); return; }
+  const dk = e.target.closest('[data-deck]');
+  if(dk){ e.preventDefault(); deckMenu(+dk.dataset.deck, e.clientX, e.clientY); return; }
+  const lf = e.target.closest('[data-life]');
+  if(lf){ e.preventDefault(); lifeMenu(+lf.dataset.life, e.clientX, e.clientY); return; }
+});
+
+function selectCard(id){
+  const loc = findCard(id); if(!loc) return;
+  if(NET && loc.pid!==NET.myPid && (loc.zone==='hand' || loc.inst.face==='down')){
+    $('#insp-img').innerHTML = '<div class="fb">非公開のカード</div>';
+    $('#insp-text').innerHTML = '相手の非公開カードです。内容は表示できません。';
+    return;
+  }
+  // 既に選択中のカードをもう一度クリックしたら選択解除
+  if(selHist.some(s=>s.id===id)){
+    selHist = selHist.filter(s=>s.id!==id);
+    render(); return;
+  }
+  selHist.push({pid:loc.pid, id, seq:++selSeq});
+  if(selHist.length>12) selHist.shift();
+  // 左パネルに詳細表示
+  const c = CARDS[loc.inst.no];
+  $('#insp-img').innerHTML = `<img src="${IMAGE_DIR}${esc(c.img)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'fb',textContent:'画像なし'}))" alt="">`;
+  $('#insp-text').innerHTML = `
+    <b>${esc(c.name)}</b>（${esc(c.type)}）<br>
+    BP:${esc(c.bp)} ／ AP:${esc(c.ap)} ／ 必要:${esc(c.req)} ／ 発生:${esc(c.gen)}<br>特徴: ${esc(c.trait)}
+    <span class="t">効果</span>${esc(c.eff)}
+    <span class="t">トリガー</span>${esc(c.trig)}
+    ${loc.inst.memo?`<span class="t">BPメモ</span>${loc.inst.memo>0?'+':''}${loc.inst.memo}`:''}`;
+  render();
+}
+
+renderBuilder();
+</script>
+
+<script>
+/* ================= 友人と対戦（Firebase同期） ================= */
+// Firebaseプロジェクトの接続情報（Realtime Database: asia-southeast1）
+const firebaseConfig = {
+  apiKey: "AIzaSyDYMGMVFUAMZQTh32-7bt3mUlWriXn6pow",
+  authDomain: "uavalut.firebaseapp.com",
+  databaseURL: "https://uavalut-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "uavalut",
+  storageBucket: "uavalut.firebasestorage.app",
+  messagingSenderId: "1013722278894",
+  appId: "1:1013722278894:web:b811fca4d1c35c8e18fcff"
+};
+
+let NET = null;        // オンライン対戦の状態（null = 一人回し / 未接続）
+let netReady = false;  // Firebase初期化済みか
+// このウィンドウ専用のID。同一PCで2ウィンドウ開くと匿名ログインIDは共有されて同じ値になるため、
+// 「どちらのプレイヤーの書き込みか」の判定にはログインIDではなくこちらを使う。
+const NET_CID = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+// 汎用操作の対象: 一人回しはターンプレイヤー、オンラインは自分
+function actPid(){ return NET ? NET.myPid : G.turn; }
+// 画面表示用の名前（自分側には「（あなた）」を付ける。共有ログには使わない）
+function pdisp(pid){ return pname(pid) + (NET && pid===NET.myPid ? '（あなた）' : ''); }
+// カードID採番: オンライン時は 偶数=部屋を作った側 / 奇数=参加側 で衝突を防ぐ
+function nextId(){ uidc++; return NET ? uidc*2 + NET.myPid : uidc; }
+
+function netInit(){
+  if(netReady) return true;
+  if(typeof firebase === 'undefined'){
+    alert('Firebaseを読み込めませんでした。インターネットに接続した状態でページを再読み込みしてください。\n（一人回しとデッキ構築はオフラインのまま利用できます）');
+    return false;
+  }
+  firebase.initializeApp(firebaseConfig);
+  netReady = true;
+  return true;
+}
+
+// 合言葉 → データベースのキー（使用できない記号と空白を _ に置き換え）
+function roomKey(pass){ return pass.trim().replace(/[.#$\[\]\/\s]+/g,'_'); }
+
+function openNetSetup(){
+  if(!netInit()) return;
+  const saved = allDecks();
+  const names = Object.keys(saved);
+  if(!names.length){ alert('保存済みデッキがありません。先にデッキ構築で作成・保存してください。'); return; }
+  const opts = names.map(n=>`<option>${esc(n)}</option>`).join('');
+  openModal('友人と対戦', `
+    <div style="line-height:2.4">
+      あなたの名前: <input id="net-name" maxlength="12" placeholder="例: たろう（12文字まで）" style="width:220px" value="${esc(localStorage.getItem('ua_player_name')||'')}"><br>
+      合言葉（部屋の名前）: <input id="net-pass" placeholder="例: きょうのたいせん" style="width:220px"><br>
+      使用するデッキ: <select id="net-deck">${opts}</select><br>
+      先攻（部屋を作る場合のみ有効）:
+      <label><input type="radio" name="net-first" value="0" checked> 自分</label>
+      　<label><input type="radio" name="net-first" value="1"> 相手</label>
+      　<label><input type="radio" name="net-first" value="2"> ランダム</label><br>
+      <span style="color:var(--dim);font-size:11px">※どちらか1人が「部屋を作る」を押し、もう1人が同じ合言葉を入力して「部屋に入る」を押してください。</span>
+    </div>`,
+    [{label:'部屋を作る', fn:netCreate},
+     {label:'部屋に入る', fn:netJoin},
+     {label:'やめる', fn:closeModal}]);
+}
+
+function netReadSetup(){
+  const pass = $('#net-pass').value.trim();
+  const name = $('#net-name').value.replace(/[<>&"']/g,'').trim().slice(0,12);
+  if(!pass){ alert('合言葉を入力してください。'); return null; }
+  const deck = {...(allDecks()[$('#net-deck').value] || {})};
+  if(!Object.keys(deck).length){ alert('デッキを選択してください。'); return null; }
+  let first = +document.querySelector('[name=net-first]:checked').value;
+  if(first===2) first = Math.random()<0.5 ? 0 : 1;
+  try{ localStorage.setItem('ua_player_name', name); }catch(e){}
+  return {pass, deck, first, name};
+}
+
+function netAuth(cb){
+  const a = firebase.auth();
+  if(a.currentUser){ cb(a.currentUser.uid); return; }
+  a.signInAnonymously().then(cred=>cb(cred.user.uid))
+   .catch(e=>alert('Firebaseへのログインに失敗しました: '+e.message+'\nFirebaseコンソールで「匿名」ログインが有効になっているか確認してください。'));
+}
+
+function netFail(e){
+  alert('通信に失敗しました: '+((e&&e.message)||e)+'\nインターネット接続とFirebaseのセキュリティルールを確認してください。');
+  netLeave(); closeModal();
+}
+
+function netNew(myPid, uid, room){
+  return { myPid, uid, cid: NET_CID, room, stateRef: room.child('state'),
+           applying:false, started:false, pending:null, waitShown:false, mulPrompted:false, pt:null };
+}
+
+// 部屋を作る（プレイヤー1になる）
+function netCreate(){
+  const s = netReadSetup(); if(!s) return;
+  closeModal();
+  netAuth(uid=>{
+    const room = firebase.database().ref('rooms/'+roomKey(s.pass));
+    NET = netNew(0, uid, room);
+    room.set({ createdAt: Date.now(), host: { uid, cid: NET_CID, name: s.name, deck: JSON.stringify(s.deck), first: s.first } })
+      .then(()=>{
+        netWait('部屋を作成しました。合言葉「'+esc(s.pass)+'」<br>相手の参加を待っています…');
+        room.child('guest').on('value', snap=>{
+          const v = snap.val();
+          if(!v || !NET || NET.started) return;
+          NET.started = true;
+          room.child('guest').off();
+          netListen();
+          NET.waitShown = false; closeModal();
+          NET.names = [ s.name || 'プレイヤー1', (v.name||'').trim() || 'プレイヤー2' ];
+          startBattle(s.deck, JSON.parse(v.deck), s.first);
+        });
+      })
+      .catch(netFail);
+  });
+}
+
+// 部屋に入る（プレイヤー2になる）
+function netJoin(){
+  const s = netReadSetup(); if(!s) return;
+  closeModal();
+  netAuth(uid=>{
+    const room = firebase.database().ref('rooms/'+roomKey(s.pass));
+    room.once('value').then(snap=>{
+      const v = snap.val();
+      if(!v || !v.host){ alert('その合言葉の部屋が見つかりません。先に相手に「部屋を作る」を押してもらってから参加してください。'); return; }
+      if(v.guest && v.guest.cid && v.guest.cid!==NET_CID){ alert('この部屋にはすでに2人が参加しています。別の合言葉で部屋を作り直してください。'); return; }
+      NET = netNew(1, uid, room);
+      NET.started = true;
+      room.child('guest').set({ uid, cid: NET_CID, name: s.name, deck: JSON.stringify(s.deck) })
+        .then(()=>{ netListen(); netWait('部屋に参加しました。対戦の開始を待っています…'); })
+        .catch(netFail);
+    }).catch(netFail);
+  });
+}
+
+// 受信: 相手の書き込みだけを反映（自分の書き込みはuidで除外、古い版はvで除外）
+function netListen(){
+  NET.stateRef.on('value', snap=>{
+    const v = snap.val();
+    if(!v || !NET || v.w===NET.cid) return;
+    if(G && (v.v||0) <= (G.v||0)) return;
+    if(netBusy()){ NET.pending = v; return; }   // モーダル操作中は閉じてから反映
+    applyRemote(v.j);
+  });
+}
+
+// モーダルやメニューの操作中か（待機モーダル表示中は除く）
+function netBusy(){
+  return ($('#modal-bg').classList.contains('show') && NET && !NET.waitShown)
+      || $('#ctx').style.display==='block';
+}
+
+function netFlushPending(){
+  if(!NET || !NET.pending || netBusy()) return;
+  const p = NET.pending; NET.pending = null;
+  if(!G || (p.v||0) > (G.v||0)) applyRemote(p.j);
+}
+const NET_FLUSH_TIMER = setInterval(netFlushPending, 400);
+
+// モーダルを閉じたら、保留していた相手の状態をすぐ反映
+const _closeModalOrig = closeModal;
+closeModal = function(){ _closeModalOrig(); netFlushPending(); };
+
+// 送信: Gを丸ごとJSON文字列で保存（空配列が消えるRTDBの仕様を回避）
+function netPush(){
+  if(!NET || !G || NET.applying) return;
+  clearTimeout(NET.pt); NET.pt = null;
+  G.v = (G.v||0) + 1;
+  NET.stateRef.set({ j: JSON.stringify(G), w: NET.cid, v: G.v })
+    .catch(e=>log('同期の送信に失敗しました（接続を確認してください）', 'sys'));
+}
+// render()から呼ばれる。連続する再描画を80msにまとめて送信
+function netMarkDirty(){
+  if(!NET || NET.applying) return;
+  clearTimeout(NET.pt);
+  NET.pt = setTimeout(netPush, 80);
+}
+
+// 受信した状態を反映して再描画
+function applyRemote(json){
+  NET.applying = true;
+  try{
+    G = JSON.parse(json);
+    // カードIDの採番カウンタを追い越されないよう進める
+    let mx = 0;
+    const scan = c=>{ if(c && typeof c.id==='number' && c.id>mx) mx = c.id; };
+    G.P.forEach(p=>['deck','hand','front','energy','life','grave','removed'].forEach(z=>(p[z]||[]).forEach(scan)));
+    (G.events||[]).forEach(e=>scan(e.inst));
+    if(Math.floor(mx/2)+1 > uidc) uidc = Math.floor(mx/2)+1;
+    if(!G.events) G.events = [];
+    selHist = selHist.filter(s=>findCard(s.id));   // 消えたカードの選択を掃除
+    if(!$('#screen-battle').classList.contains('show')){
+      showScreen('battle');
+      $('#battle-title').textContent = '友人と対戦';
+    }
+    rebuildLog();
+    render();
+    netCheckPhase();
+  } finally { NET.applying = false; }
+}
+
+// 対戦ログを受信内容で作り直す
+function rebuildLog(){
+  const el = $('#battle-log'); el.innerHTML = '';
+  G.log.forEach(en=>{ const d = document.createElement('div'); d.textContent = en.text;
+    d.className = en.who==='sys' ? 'sys' : ('p'+en.who); el.prepend(d); });
+}
+
+// マリガンの進行管理（先攻のプレイヤーから順に、各自の画面で選択）
+function netCheckPhase(){
+  if(!NET || !G) return;
+  if(G.phase==='mulligan'){
+    if(G.mulTurn===NET.myPid && !G.mulDone[NET.myPid]){
+      if(!NET.mulPrompted){
+        NET.mulPrompted = true;
+        if(NET.waitShown){ NET.waitShown = false; closeModal(); }
+        mulliganPrompt(NET.myPid, netMulDone);
+      }
+    } else if(!NET.mulPrompted && !NET.waitShown){
+      netWait('相手がマリガン（手札の引き直し）を選択しています。お待ちください…');
+    }
+  } else if(G.phase==='play' && NET.waitShown){
+    NET.waitShown = false; closeModal();
+  }
+}
+function netMulDone(){
+  NET.mulPrompted = false;
+  G.mulDone[NET.myPid] = true;
+  if(G.mulDone[1-NET.myPid]){
+    G.phase = 'play';
+    finishSetup();               // 2人目の選択後にライフ配置とターン開始
+    netPush();                   // 待っている相手のために即時送信（デバウンスを待たない）
+  } else {
+    G.mulTurn = 1-NET.myPid;
+    netPush();
+    netCheckPhase();
+  }
+}
+
+// 待機モーダル（背景クリックでは閉じない）
+function netWait(msgHTML){
+  NET.waitShown = true;
+  openModal('友人と対戦', '<p style="text-align:center;line-height:2.2">'+msgHTML+'</p>',
+    [{label:'中止してメニューへ', fn:()=>{ if(confirm('接続を中止してメニューに戻りますか？')) leaveBattle(true); }}], true);
+}
+
+// 対戦画面の「メニューへ」ボタン（オンライン時は切断も行う）
+function leaveBattle(force){
+  if(!force && !confirm(NET ? '対戦を終了して通信を切断し、メニューに戻りますか？' : '対戦を終了してメニューに戻りますか？')) return;
+  netLeave();
+  closeModal();
+  showScreen('menu');
+}
+function netLeave(){
+  if(!NET) return;
+  try{ NET.stateRef.off(); NET.room.child('guest').off(); clearTimeout(NET.pt); }catch(e){}
+  NET = null;
+}
+</script>
+</body>
+</html>
