@@ -253,6 +253,7 @@ h1 .back{margin-left:auto;}
 <script>
 /* ================= 共通 ================= */
 const IMAGE_DIR = 'images/';           // カード画像フォルダ（index.htmlと同じ場所に置く）
+const imgSrc = c => IMAGE_DIR + String(c.img||'').replace(/\.png$/i,'.webp');
 const $ = s => document.querySelector(s);
 const CARDS = {};
 CARD_DATA.forEach(c => CARDS[c.no] = c);
@@ -272,7 +273,7 @@ function visualHTML(no, cls){
   if(!c) return `<div class="${cls}"><div class="fb">不明なカード<br>${esc(no)}</div></div>`;
   return `<div class="${cls}">
     <div class="fb"><b>${esc(c.name)}</b><span class="bp">${c.bp!=='-'?'BP'+esc(c.bp):esc(c.type)}</span><br>${esc(c.req)}</div>
-    <img src="${IMAGE_DIR}${esc(c.img)}" onerror="this.remove()" alt="">
+    <img src="${esc(imgSrc(c))}" onerror="this.remove()" alt="">
   </div>`;
 }
 
@@ -1018,7 +1019,7 @@ function bcardHTML(inst, forceBack){
                selHist.some(s=>s.id===inst.id)?'sel':''].join(' ');
   const inner = down ? '' :
     `<div class="fb"><span class="sub">AP${esc(c.ap)} 必要${esc(c.req)}</span><b>${esc(c.name)}</b><span class="bp">${c.bp!=='-'?'BP'+esc(c.bp):esc(c.type)}</span></div>
-     <img src="${IMAGE_DIR}${esc(c.img)}" onerror="this.remove()" alt="">`;
+     <img src="${esc(imgSrc(c))}" onerror="this.remove()" alt="">`;
   const memo = inst.memo ? `<span class="memo">${inst.memo>0?'+':''}${inst.memo}</span>` : '';
   const stk = inst.under.length ? `<span class="stk">${inst.under.length+1}</span>` : '';
   const frz = inst.frozen ? `<span class="frz">❄</span>` : '';
@@ -1124,7 +1125,7 @@ function selectCard(id){
   if(selHist.length>12) selHist.shift();
   // 左パネルに詳細表示
   const c = CARDS[loc.inst.no];
-  $('#insp-img').innerHTML = `<img src="${IMAGE_DIR}${esc(c.img)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'fb',textContent:'画像なし'}))" alt="">`;
+  $('#insp-img').innerHTML = `<img src="${esc(imgSrc(c))}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'fb',textContent:'画像なし'}))" alt="">`;
   $('#insp-text').innerHTML = `
     <b>${esc(c.name)}</b>（${esc(c.type)}）<br>
     BP:${esc(c.bp)} ／ AP:${esc(c.ap)} ／ 必要:${esc(c.req)} ／ 発生:${esc(c.gen)}<br>特徴: ${esc(c.trait)}
