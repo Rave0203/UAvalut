@@ -119,6 +119,15 @@ h1 .back{margin-left:auto;}
 .bcard.facedown{background:repeating-linear-gradient(45deg,var(--zone),var(--zone) 4px,var(--paper) 4px,var(--paper) 8px);}
 .bcard.sel{border-color:var(--note);box-shadow:0 0 0 2px var(--note);}
 .bcard .memo{position:absolute;bottom:1px;right:1px;background:var(--note);color:#000;font-size:9px;padding:0 3px;border-radius:2px;font-family:Consolas,monospace;z-index:2;}
+/* BPメモ・特殊能力のラベル置き場（カード下部に右詰めで並べる） */
+.bcard .badges{position:absolute;left:1px;right:1px;bottom:1px;display:flex;flex-wrap:wrap;gap:1px;justify-content:flex-end;align-items:flex-end;z-index:2;max-height:78%;overflow:hidden;}
+.bcard .badges .memo{position:static;bottom:auto;right:auto;}
+.bcard .abil{background:var(--ok);color:#04301C;font-size:8px;line-height:1.5;padding:0 2px;border-radius:2px;letter-spacing:-.05em;}
+/* 特殊能力モーダルのチェックボックス一覧 */
+#abil-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 14px;}
+#abil-form label{display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 6px;border:1px solid rgba(74,107,138,.4);border-radius:3px;}
+#abil-form label:hover{border-color:var(--note);}
+#abil-form input[type=text]{width:46px;padding:2px 5px;font-size:11px;}
 .bcard .stk{position:absolute;top:1px;right:1px;background:var(--dim);color:#fff;font-size:9px;padding:0 4px;border-radius:2px;z-index:2;}
 .bcard .frz{position:absolute;top:1px;left:1px;background:#7fd8ff;color:#03314f;font-size:10px;padding:0 3px;border-radius:2px;z-index:2;}
 .apchip{display:inline-block;width:30px;height:42px;border:1px solid var(--line);border-radius:2px;font-size:9px;line-height:42px;cursor:pointer;margin:2px;text-align:center;}
@@ -185,6 +194,7 @@ h1 .back{margin-left:auto;}
           <option value="なし">なし</option><option>ドロー</option><option>アクティブ</option><option>レイド</option>
           <option>ゲット</option><option>カラー</option><option>スペシャル</option><option>ファイナル</option></select>
         <input id="f-kw" placeholder="キーワード検索（名前・効果・特徴）" style="width:220px">
+        <button id="f-para" onclick="toggleParallel()">パラレルを非表示にする</button>
       </div>
       <div id="card-grid"></div>
     </div>
@@ -287,6 +297,16 @@ COLORS.forEach(w=>{const o=document.createElement('option');o.textContent=w;$('#
 ['f-work','f-color','f-req','f-type','f-trig'].forEach(id=>$('#'+id).addEventListener('change',renderGrid));
 $('#f-kw').addEventListener('input',renderGrid);
 
+// パラレル（末尾 _p1〜）を一覧から隠すかどうか。ボタンで切り替える
+let hidePara = false;
+function toggleParallel(){
+  hidePara = !hidePara;
+  const b = $('#f-para');
+  b.textContent = hidePara ? 'パラレルを表示する' : 'パラレルを非表示にする';
+  b.classList.toggle('warn', hidePara);
+  renderGrid();
+}
+
 function filteredCards(){
   const w=$('#f-work').value, col=$('#f-color').value, req=$('#f-req').value,
         ty=$('#f-type').value, tg=$('#f-trig').value, kw=$('#f-kw').value.trim();
@@ -294,6 +314,7 @@ function filteredCards(){
   return CARD_DATA.filter(c=>{
     if(c.work!==w) return false;
     if(c.type==='アクションポイント') return false;     // APカードはデッキ外
+    if(hidePara && /_p\d+$/.test(c.no)) return false;   // パラレル非表示
     if(col && c.color!==col) return false;
     if(req!==''){ const n=+req; if(n===4){if(c.reqN<4)return false;} else if(c.reqN!==n) return false; }
     if(ty && c.type!==ty) return false;
@@ -528,7 +549,29 @@ let selHist = [];     // 選択履歴 [{pid, id, seq}]
 let selSeq = 0;
 
 const pname = pid => NET ? ((G && G.names && G.names[pid]) || (pid===0 ? 'プレイヤー1' : 'プレイヤー2')) : (pid===0 ? '自分側' : '相手側');
-function newInst(no, face){ return {id:nextId(), no, rest:false, face:face||'up', memo:0, memoClear:true, under:[]}; }
+function newInst(no, face){ return {id:nextId(), no, rest:false, face:face||'up', memo:0, memoClear:true, abils:[], under:[]}; }
+
+/* --- 特殊能力（手動で付けるマーカー。効果の処理そのものは人が行う） --- */
+// num:true のものは数値入力欄が付く（インパクト（1）、ダメージ（+1）のように書き出す）
+const ABILS = [
+  {key:'インパクト',       num:true, def:'1'},
+  {key:'インパクト無効'},
+  {key:'ダメージ',         num:true, def:'2'},
+  {key:'ステップ'},
+  {key:'狙い撃ち'},
+  {key:'2回アタック'},
+  {key:'2回ブロック'},
+  {key:'ブロックされない'},
+  {key:'ブロックできない'},
+  {key:'アタックできない'},
+  {key:'選ばれない'},
+  {key:'効果を受けない'},
+  {key:'退場しない'},
+];
+// カードに付いている能力の配列を必ず取り出す（古い保存データ・通信データ対策）
+function abilsOf(inst){ if(!Array.isArray(inst.abils)) inst.abils = []; return inst.abils; }
+// BPメモと特殊能力の両方を消す（ゾーン移動時・ターン終了時に使う）
+function clearMarks(inst){ inst.memo = 0; inst.abils = []; }
 
 function openBattleSetup(fromBuilder){
   const saved = allDecks();
@@ -673,18 +716,18 @@ function moveTo(id, destPid, destZone, finalize){
   if(destZone==='front'||destZone==='energy'){
     inst.face='up';
     inst.rest = keepState ? inst.rest : true;        // レストイン。ライン間の移動だけ状態維持
-    if(!keepState) {inst.memo=0;}
+    if(!keepState) {clearMarks(inst);}
     P[destZone].push(inst);
   } else if(destZone==='hand'){
-    flatten(inst).forEach(c=>{c.face='up';c.rest=false;c.memo=0;P.hand.push(c);});
+    flatten(inst).forEach(c=>{c.face='up';c.rest=false;clearMarks(c);P.hand.push(c);});
   } else if(destZone==='deckTop'){
-    flatten(inst).reverse().forEach(c=>{c.face='down';c.rest=false;c.memo=0;P.deck.unshift(c);});
+    flatten(inst).reverse().forEach(c=>{c.face='down';c.rest=false;clearMarks(c);P.deck.unshift(c);});
   } else if(destZone==='deckBottom'){
-    flatten(inst).forEach(c=>{c.face='down';c.rest=false;c.memo=0;P.deck.push(c);});
+    flatten(inst).forEach(c=>{c.face='down';c.rest=false;clearMarks(c);P.deck.push(c);});
   } else if(destZone==='life'){
-    flatten(inst).forEach(c=>{c.face='down';c.rest=false;c.memo=0;P.life.unshift(c);});
+    flatten(inst).forEach(c=>{c.face='down';c.rest=false;clearMarks(c);P.life.unshift(c);});
   } else if(destZone==='grave'||destZone==='removed'){
-    flatten(inst).forEach(c=>{c.face='up';c.rest=false;c.memo=0;P[destZone].push(c);});
+    flatten(inst).forEach(c=>{c.face='up';c.rest=false;clearMarks(c);P[destZone].push(c);});
   } else if(destZone==='events'){
     inst.face='up'; inst.rest=false;
     G.events.push({owner:destPid, inst});
@@ -723,7 +766,7 @@ function endTurn(){
     if(c.frozen){ c.frozen=false; log(`${pname(G.turn)}: ${dispName(c)} はフリーズ中のためアクティブにしません（フリーズ解除）`, 'sys'); }
     else c.rest=false; });
   [0,1].forEach(pid=>{ const q=G.P[pid];
-    ['front','energy'].forEach(z=>q[z].forEach(c=>{ if(c.memoClear) c.memo=0; })); });
+    ['front','energy'].forEach(z=>q[z].forEach(c=>{ if(c.memoClear) clearMarks(c); })); });
   if(p.hand.length>8) log(`${pname(G.turn)}: 手札が${p.hand.length}枚（8枚を超えた分はリムーブへ移してください）`, 'sys');
   log(`=== ${pname(G.turn)}のターン終了 ===`, 'sys');
   G.turn = 1-G.turn; G.globalTurn++;
@@ -990,7 +1033,7 @@ function cardMenu(id, x, y){
         const loc2 = findCard(id);                    // 抜いた後に位置を取り直す（同じ列内でのズレ対策）
         sInst.rest = false;                           // レイド後は自動でアクティブ
         sInst.face = 'up';
-        sInst.memo = 0;
+        clearMarks(sInst);
         sInst.under = [{no:inst.no, face:inst.face}, ...inst.under, ...sInst.under];
         loc2.arr.splice(loc2.idx,1,sInst);
         log(`${pname(loc.pid)}: [${CARDS[sInst.no].name}] を [${CARDS[inst.no].name}] にレイド（アクティブで登場）`, loc.pid);
@@ -1005,10 +1048,63 @@ function cardMenu(id, x, y){
   }
   if(inst.under.length) items.push({label:`束を見る（${inst.under.length+1}枚）`, fn:()=>stackViewer(id)});
   items.push({label:'BP +1000', fn:()=>{ inst.memo+=1000; render(); }});
+  items.push({label:'BP +500',  fn:()=>{ inst.memo+=500;  render(); }});
+  items.push({label:'BP −500',  fn:()=>{ inst.memo-=500;  render(); }});
   items.push({label:'BP −1000', fn:()=>{ inst.memo-=1000; render(); }});
   if(inst.memo) items.push({label:'BPメモを消す', fn:()=>{ inst.memo=0; render(); }});
-  items.push({label:`メモ:ターン終了で${inst.memoClear?'消える✓':'残す'}（切替）`, fn:()=>{ inst.memoClear=!inst.memoClear; render(); }});
+  const na = abilsOf(inst).length;
+  items.push({label:`特殊能力を追加${na?`（現在${na}件）`:''}`, fn:()=>abilModal(id)});
+  items.push({label:`BPメモ・特殊能力:ターン終了で${inst.memoClear?'消える✓':'残す'}（切替）`, fn:()=>{ inst.memoClear=!inst.memoClear; render(); }});
   openCtx(items, x, y);
+}
+
+// 特殊能力の付与モーダル（チェックボックスで選び、「決定」でカードに付け替える）
+function abilModal(id){
+  const loc = findCard(id); if(!loc) return;
+  const inst = loc.inst;
+  const cur = abilsOf(inst);
+  // 今付いている能力からチェック状態を復元する（例: インパクト（3） → チェック済み＋数値欄に3）
+  const state = ABILS.map(a=>{
+    if(a.num){
+      const hit = cur.find(x=>x.indexOf(a.key+'（')===0);
+      return {on:!!hit, val: hit ? hit.slice(a.key.length+1, -1) : a.def};
+    }
+    return {on: cur.indexOf(a.key)>=0, val:''};
+  });
+  const html = `<div id="abil-form">` + ABILS.map((a,i)=>`
+    <label>
+      <input type="checkbox" data-ab-i="${i}" ${state[i].on?'checked':''}>
+      <span>${esc(a.key)}</span>
+      ${a.num?`<input type="text" data-ab-n="${i}" value="${esc(state[i].val)}" placeholder="${esc(a.def)}">`:''}
+    </label>`).join('') + `</div>
+    <p style="color:var(--dim);font-size:11px;margin-top:12px;line-height:1.9">
+      チェックした能力が、BPメモと同じようにカードのラベルとして表示されます。効果の処理そのものは手動で行ってください。<br>
+      数値欄には <b>1</b> や <b>+1</b> のように入力してください（空欄の場合は既定値を使用します）。<br>
+      付与した能力は、右クリックメニューの「ターン終了で消える／残す」の設定に従います（既定はターン終了で消えます）。
+    </p>`;
+  const collect = ()=> ABILS.map((a,i)=>{
+      const cb = $(`[data-ab-i="${i}"]`);
+      if(!cb || !cb.checked) return null;
+      if(!a.num) return a.key;
+      const box = $(`[data-ab-n="${i}"]`);
+      const raw = ((box && box.value) || '').trim() || a.def;
+      return `${a.key}（${raw}）`;
+    }).filter(v=>v);
+  openModal(`特殊能力の付与（${esc(CARDS[inst.no] ? CARDS[inst.no].name : inst.no)}）`, html, [
+    {label:'決定', fn:()=>{
+      const next = collect();
+      inst.abils = next;
+      log(`${pname(loc.pid)}: ${dispName(inst)} の特殊能力を「${next.length?next.join('・'):'なし'}」に設定`, loc.pid);
+      closeModal(); render();
+    }},
+    {label:'すべて外す', fn:()=>{
+      inst.abils = [];
+      log(`${pname(loc.pid)}: ${dispName(inst)} の特殊能力をすべて解除`, loc.pid);
+      closeModal(); render();
+    }},
+    {label:'やめる', fn:closeModal},
+  ]);
+  $('#modal').style.maxWidth = '760px';
 }
 
 /* --- 描画 --- */
@@ -1020,7 +1116,11 @@ function bcardHTML(inst, forceBack){
   const inner = down ? '' :
     `<div class="fb"><span class="sub">AP${esc(c.ap)} 必要${esc(c.req)}</span><b>${esc(c.name)}</b><span class="bp">${c.bp!=='-'?'BP'+esc(c.bp):esc(c.type)}</span></div>
      <img src="${esc(imgSrc(c))}" onerror="this.remove()" alt="">`;
-  const memo = inst.memo ? `<span class="memo">${inst.memo>0?'+':''}${inst.memo}</span>` : '';
+  // BPメモと特殊能力を、同じ見た目のラベルとしてカード下部に並べる
+  const badges = [];
+  if(inst.memo) badges.push(`<span class="memo">${inst.memo>0?'+':''}${inst.memo}</span>`);
+  abilsOf(inst).forEach(a=>badges.push(`<span class="abil" title="${esc(a)}">${esc(a)}</span>`));
+  const memo = badges.length ? `<div class="badges">${badges.join('')}</div>` : '';
   const stk = inst.under.length ? `<span class="stk">${inst.under.length+1}</span>` : '';
   const frz = inst.frozen ? `<span class="frz">❄</span>` : '';
   return `<div class="${cls}" data-cid="${inst.id}">${inner}${memo}${stk}${frz}</div>`;
@@ -1131,7 +1231,8 @@ function selectCard(id){
     BP:${esc(c.bp)} ／ AP:${esc(c.ap)} ／ 必要:${esc(c.req)} ／ 発生:${esc(c.gen)}<br>特徴: ${esc(c.trait)}
     <span class="t">効果</span>${esc(c.eff)}
     <span class="t">トリガー</span>${esc(c.trig)}
-    ${loc.inst.memo?`<span class="t">BPメモ</span>${loc.inst.memo>0?'+':''}${loc.inst.memo}`:''}`;
+    ${loc.inst.memo?`<span class="t">BPメモ</span>${loc.inst.memo>0?'+':''}${loc.inst.memo}`:''}
+    ${abilsOf(loc.inst).length?`<span class="t">付与された特殊能力</span>${abilsOf(loc.inst).map(esc).join('　/　')}`:''}`;
   render();
 }
 
