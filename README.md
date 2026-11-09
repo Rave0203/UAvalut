@@ -16,6 +16,9 @@
 | `images/` | カード画像（WebP）。ファイル名はカード番号の `/` を `_` に置き換えたもの |
 | `Card_data_make/get_card.py` | 公式サイトからカードを取得し、WebPに変換して `images/` に入れるツール |
 | `Card_data_make/make_cards_data.py` | 取得したJSONから `cards-data.js` を作り直すツール |
+| `Card_data_make/update_cards_data.py` | 今ある `cards-data.js` に、新しく取得した弾だけを差し込むツール |
+| `.github/workflows/add-cards.yml` | GitHub の「Actions」から弾を選んでカードを追加する仕組み |
+| `.github/workflows/deploy-pages.yml` | サイト（GitHub Pages）を公開する仕組み |
 | `Card_data_make/convert_images.py` | 既存の `images/` フォルダをまとめてWebPに変換し直す時だけ使う（通常は不要） |
 
 `index.html` / `cards-data.js` / `images/` の3つが同じ場所に揃っていれば動きます。
@@ -88,7 +91,44 @@
 
 ## 3. カードを追加する手順（新弾が出たとき）
 
-新しい弾のカードを追加するときは、次の3ステップです。
+新しい弾のカードを追加するときは、GitHub のボタンを使う方法と、手元でPythonを動かす方法があります。
+
+### GitHub のボタンで追加する
+
+いちばん簡単な方法です。手元でPythonを動かさなくても、GitHub上で取得からサイトへの反映までまとめて行えます。
+
+#### 初回だけ必要な設定
+
+リポジトリの Settings → Pages を開き、「Build and deployment」の Source を「GitHub Actions」に変えてください。
+この設定のあとは GitHub Desktop でPushしたときも、Actions の「サイトを公開」がサイトを更新します。
+
+#### カードを追加する
+
+1. GitHub でリポジトリを開き、「Actions」タブを押します
+2. 左の一覧から「カードを追加」を選び、右の「Run workflow」を押します
+3. 「取得する弾」で弾を選び、緑の「Run workflow」を押します
+   - 新しい弾は一番上の「新しい弾をすべて（まだ取り込んでいない弾だけ）」を選ぶと、公式サイトから探して取り込みます
+   - プロモーションカードのように、取り込み済みの弾を取り直したいときは、その弾を選びます
+4. 終わると、画像・JSON・`cards-data.js` がコミットされ、サイトも更新されます
+
+まだ取り込んでいない弾のシリーズ名は、すでにある同じ作品のカードに合わせて自動で付けます（例: `リゼロ Vol.2 EX17BT`）。
+初めての作品は、公式サイトの表記がそのまま作品名になります。
+
+> 実行したあとは、GitHub Desktop で「Fetch origin」→「Pull origin」を押して、手元を最新にしてください。
+> 手元が古いまま編集してPushすると、`cards-data.js` が衝突します。
+
+手元で同じことをする場合は、`Card_data_make` フォルダで次のように実行します。
+
+```
+python get_card.py UA57BT
+python update_cards_data.py
+```
+
+`update_cards_data.py` は今ある `cards-data.js` に新しい弾だけを差し込むので、過去の弾のJSONを揃える必要はありません。
+
+### 手元でPythonを動かす場合
+
+次の3ステップです。
 
 ### 準備（初回のみ）
 

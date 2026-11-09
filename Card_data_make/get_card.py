@@ -23,12 +23,21 @@ get_card.py — 公式サイトからカードを取得し、軽量WebPに変換
   5. 続けて make_cards_data.py を実行して cards-data.js を作り直す
 
 途中で止めても、既にWebPがある画像は飛ばして続きから進みます。
+
+--- 弾を引数で指定する場合（SERIES_LIST を書き換えずに済みます） ---------
+  python get_card.py new           公式サイトにあって、まだ取り込んでいない弾をすべて取得
+  python get_card.py UA57BT        商品コードや名前の一部で指定（複数可）
+  python get_card.py 570157        公式サイトの弾の値で指定
+  引数を付けた場合、SERIES_LIST は使いません。
+  GitHub の「Actions」タブからボタンで実行するときも、この仕組みを使っています。
 ------------------------------------------------------------------------
 """
 import os
 import io
+import sys
 import json
 import re
+from collections import Counter
 from PIL import Image
 from playwright.sync_api import sync_playwright
 
@@ -37,6 +46,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))          # Card_data_mak
 REPO_DIR   = os.path.dirname(SCRIPT_DIR)                          # index.html がある場所
 IMAGES_DIR = os.path.join(REPO_DIR, "images")                     # 画像の最終的な置き場
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "cards_data")               # カードJSONの置き場
+CARDS_JS   = os.path.join(REPO_DIR, "cards-data.js")              # 取り込み済みの弾を調べるのに使う
 
 MAX_W   = 400          # 画像の横幅の上限（シミュレータ内の最大表示は約220pxなので十分）
 QUALITY = 82           # WebPの品質。下げるとさらに軽くなるが画質が落ちる
@@ -207,30 +217,110 @@ def fetch_and_convert(page, img_url, img_name, stats):
     stats["saved"] += 1
     return True
 
+# ===== 引数で弾を指定する場合 ===========================================
+def known_names():
+    # このファイルの SERIES_LIST に書かれた (値, シリーズ名) を、# 付きの行も含めて読む
+    with open(os.path.abspath(__file__), encoding="utf-8") as f:
+        return dict(re.findall(r'\("(\d{6})",\s*"([^"]+)"\)', f.read()))
+
+def load_cards_js():
+    # 取り込み済みのカード番号の頭（UA56BT など）と、作品コード（GRL など）→ 作品名 の対応
+    prefixes, works = set(), {}
+    if not os.path.exists(CARDS_JS):
+        return prefixes, works
+    with open(CARDS_JS, encoding="utf-8") as f:
+        s = f.read().strip()
+    data = json.loads(s[s.index("["):].rstrip(";"))
+    count = {}
+    for c in data:
+        no = c.get("no", "")
+        prefixes.add(no.split("/")[0])
+        m = re.match(r"[^/]+/([A-Za-z0-9]+)-", no)
+        if m and c.get("work") != "プロモーションカード":
+            count.setdefault(m.group(1), Counter())[c["work"]] += 1
+    works = {k: v.most_common(1)[0][0] for k, v in count.items()}
+    return prefixes, works
+
+def label_code(label):
+    m = re.search(r"【\s*([A-Z]{2}\d+[A-Z]+)\s*】", label)
+    return m.group(1) if m else ""
+
+def site_series(page):
+    page.goto("https://www.unionarena-tcg.com/jp/cardlist/index.php?search=true")
+    opts = page.eval_on_selector_all(
+        "#series option", "els => els.map(o => [o.value, o.textContent.trim()])")
+    return [(v, t) for v, t in opts if re.fullmatch(r"\d{6}", v or "")]
+
+def resolve_targets(page, args, prefixes):
+    """引数から、取得する弾 [(値, シリーズ名 or None)] と {値: 公式の表示名} を作る"""
+    options = site_series(page)
+    labels = dict(options)
+    names = known_names()
+    picked = []
+    for arg in args:
+        arg = arg.strip()
+        if not arg:
+            continue
+        if arg.lower() == "new" or arg.startswith("新しい弾"):
+            # 商品コード付きで、cards-data.js にまだ1枚も無い弾
+            hit = [v for v, t in options
+                   if v not in names and label_code(t) and label_code(t) not in prefixes]
+        elif re.match(r"\d{6}", arg):
+            hit = [v for v, _ in options if v == arg[:6]]
+        else:
+            hit = [v for v, t in options if arg.lower() in t.lower()]
+        if not hit:
+            print(f"!! 「{arg}」に当てはまる弾は見つからないか、取り込み済みです")
+        picked += [v for v in hit if v not in picked]
+    return [(v, names.get(v)) for v in picked], labels
+
+def guess_name(label, card_numbers, works):
+    """SERIES_LIST に無い弾のシリーズ名を、手元の命名に合わせて作る（例: リゼロ Vol.2 EX17BT）"""
+    code = label_code(label)
+    title = re.sub(r"【[^】]*】", "", label).strip()
+    vol = re.search(r"Vol\.\d+", title)
+    base = re.sub(r"\s*Vol\.\d+.*$", "", title).strip()
+    # 同じ作品コード（カード番号の / と - の間）のカードが既にあれば、その作品名を使う
+    tc = Counter(m.group(1) for m in (re.match(r"[^/]+/([A-Za-z0-9]+)-", n) for n in card_numbers) if m)
+    if tc and tc.most_common(1)[0][0] in works:
+        base = works[tc.most_common(1)[0][0]]
+    return " ".join(x for x in (base, vol.group(0) if vol else "", code) if x)
+
 # ===== 本体 =============================================================
 def main():
     os.makedirs(IMAGES_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    targets = [s for s in SERIES_LIST]
-    if not targets:
+    args = sys.argv[1:]
+    targets = [] if args else [s for s in SERIES_LIST]
+    if not args and not targets:
         print("!! SERIES_LIST が空です。取得したい弾の行の # を外してください。")
         return
 
-    print(f"画像の保存先: {IMAGES_DIR}")
-    print(f"JSONの保存先: {OUTPUT_DIR}")
-    print(f"対象: {len(targets)}弾（横幅{MAX_W}px / 品質{QUALITY}のWebPに変換します）")
-
     stats = {"saved": 0, "skipped": 0, "failed": 0, "src_bytes": 0, "dst_bytes": 0}
+    done = []    # 取得できた弾の名前（最後に表示する）
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)   # 画面なし（高速）で回す
         page = browser.new_page()
 
+        labels, works = {}, {}
+        if args:
+            prefixes, works = load_cards_js()
+            targets, labels = resolve_targets(page, args, prefixes)
+            if not targets:
+                print("取得する弾がありません。")
+                browser.close()
+                return
+
+        print(f"画像の保存先: {IMAGES_DIR}")
+        print(f"JSONの保存先: {OUTPUT_DIR}")
+        print(f"対象: {len(targets)}弾（横幅{MAX_W}px / 品質{QUALITY}のWebPに変換します）")
+
         # 弾を1つずつ処理する
         for series_value, series_name in targets:
             try:
-                print(f"\n===== {series_name} を取得中 =====")
+                print(f"\n===== {series_name or labels.get(series_value, series_value)} を取得中 =====")
 
                 page.goto("https://www.unionarena-tcg.com/jp/cardlist/index.php?search=true")
                 page.select_option("#series", series_value, force=True)
@@ -248,6 +338,9 @@ def main():
                 print(f"  {len(card_numbers)} 枚見つかりました")
                 if not card_numbers:
                     continue
+                if not series_name:
+                    series_name = guess_name(labels.get(series_value, series_value), card_numbers, works)
+                    print(f"  シリーズ名: {series_name}")
 
                 all_cards = []
                 for i, no in enumerate(card_numbers, 1):
@@ -301,6 +394,7 @@ def main():
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(all_cards, f, ensure_ascii=False, indent=2)
                 print(f"  → {json_path} に {len(all_cards)} 件保存")
+                done.append(series_name)
 
             except Exception as e:
                 # この弾でエラーが出ても、止まらず次の弾へ進む
@@ -316,6 +410,11 @@ def main():
               f"（{100 - stats['dst_bytes'] / stats['src_bytes'] * 100:.1f}% 削減）")
     print(f"画像の保存先: {IMAGES_DIR}")
     print("\n続けて make_cards_data.py を実行すると cards-data.js が出来上がります。")
+
+    # GitHub Actions から動かしたときは、取得した弾の名前をコミットメッセージ用に渡す
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+            f.write("series=" + "、".join(done) + "\n")
 
 if __name__ == "__main__":
     main()
