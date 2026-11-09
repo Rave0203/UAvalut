@@ -325,8 +325,9 @@ def main():
                 page.goto("https://www.unionarena-tcg.com/jp/cardlist/index.php?search=true")
                 page.select_option("#series", series_value, force=True)
                 page.wait_for_timeout(500)
-                page.eval_on_selector("#series", "el => el.form.submit()")
-                page.wait_for_load_state("networkidle")
+                # 送信したページ移動が終わるまで待つ（移動が始まる前に先へ進むと、移動中のページを読んで落ちる）
+                with page.expect_navigation(wait_until="networkidle"):
+                    page.eval_on_selector("#series", "el => el.form.submit()")
 
                 links = page.query_selector_all(".cardlistCol .cardImgCol .modalCardDataOpen")
                 card_numbers = []
@@ -398,7 +399,7 @@ def main():
 
             except Exception as e:
                 # この弾でエラーが出ても、止まらず次の弾へ進む
-                print(f"  !! {series_name} でエラー: {e} → この弾を飛ばして次へ")
+                print(f"  !! {series_name or labels.get(series_value, series_value)} でエラー: {e} → この弾を飛ばして次へ")
                 continue
 
         browser.close()
