@@ -18,11 +18,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # 公開するファイルをまとめて上げる
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,5 +32,14 @@ jobs:
         with:
           path: .
 
+  # 上げたファイルを公開する。同じジョブで続けて動かすと、上げたファイルを見つけられずに
+  # 失敗することがあるため、ジョブを分けている（actions/deploy-pages の issue #451）
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5
